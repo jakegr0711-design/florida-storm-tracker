@@ -1,0 +1,5 @@
+horizon_h,n_cases,model_err_nmi,persistence_err_nmi,climatology_err_nmi,model_err_FLstorms_nmi,n_FL,NHC_official_2024_nmi,NHC_CLIPER5_2024_nmi
+12,5237,42.6,55.0,132.6,46.6,580,19.2,41.7
+24,4839,106.7,133.6,254.3,117.6,536,28.0,88.4
+48,4089,249.9,321.3,467.2,278.9,449,45.4,199.0
+72,3397,383.7,531.2,646.2,418.2,369,66.9,281.1
