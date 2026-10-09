@@ -2,6 +2,10 @@
 
 A student science-communication project: every tropical cyclone that crossed Florida since 1851, a simple statistical hurricane track model tested against the National Hurricane Center, and an interactive map (`index.html`).
 
+**Pages:**
+- `index.html`: the live tracker. It shows active storms with NHC's forecast cone, track and watches/warnings, the 7-day outlook for new storms, and a personal risk report for any address (National Weather Service alerts and forecast, FEMA flood zone, USGS ground elevation, hurricane history within 50 miles). All data loads live from NOAA, FEMA and USGS in the visitor's browser.
+- `history.html`: every storm that crossed Florida since 1851, plus the class forecast model you can test against real storms.
+
 **View the site:** open `index.html` in a browser, or turn on GitHub Pages for this repository (Settings, Pages, Deploy from a branch, `main`, `/ (root)`). The hurricane chat assistant only works on the Claude-hosted version of the page; everything else works anywhere.
 
 **This is a class project, not a forecast.** For real hurricane decisions use https://www.nhc.noaa.gov and your county emergency management.
