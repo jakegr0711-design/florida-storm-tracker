@@ -73,7 +73,8 @@ RULES
 
 module.exports = async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-  const key = process.env.ANTHROPIC_API_KEY;
+  // Tolerate common paste mistakes: surrounding spaces or quotes, or "ANTHROPIC_API_KEY=" pasted into the value.
+  const key = (process.env.ANTHROPIC_API_KEY || "").trim().replace(/^ANTHROPIC_API_KEY\s*=\s*/, "").replace(/^["']+|["']+$/g, "").trim();
   if (req.method === "GET") return res.status(200).json({ enabled: Boolean(key) });
   if (req.method !== "POST") return res.status(405).json({ error: "Use POST." });
   if (!key) return res.status(503).json({ error: "The chat assistant is not set up yet." });
@@ -108,7 +109,11 @@ module.exports = async function handler(req, res) {
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
       console.error("Anthropic API error", r.status, data && data.error);
-      return res.status(502).json({ error: r.status === 429 ? "The assistant is busy right now. Try again in a minute." : "The assistant could not answer right now. Try again in a minute." });
+      const msg = r.status === 401 || r.status === 403 ? "The assistant is not set up correctly: its API key was rejected. Site owner: replace ANTHROPIC_API_KEY in Vercel with a valid key, then redeploy."
+        : r.status === 429 ? "The assistant is busy right now. Try again in a minute."
+        : r.status === 400 && /usage limit|credit/i.test(JSON.stringify(data)) ? "The assistant has reached its spending limit for now."
+        : "The assistant could not answer right now. Try again in a minute.";
+      return res.status(502).json({ error: msg });
     }
     const answer = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n").trim();
     return res.status(200).json({ answer: answer || "Sorry, I could not come up with an answer. Try rephrasing your question." });
