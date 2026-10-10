@@ -95,3 +95,11 @@ Result for Isaias, forecast from Oct 8 18Z (latitude N / longitude W):
 Our model sends Isaias toward Florida's Big Bend because that is what storms in that spot have usually done. NHC sends it north into Alabama because its models can see the steering pattern this week. After the storm, compare both columns with the final best track: that comparison is the strongest piece of evidence for the article.
 
 Do not publish our model's track for a live storm as a forecast. Show it only next to NHC's official forecast, clearly labeled, or after the storm as a scorecard.
+
+## Chat assistant on the live site
+
+`api/chat.js` is a Vercel serverless function. The page sends visitor questions to `/api/chat`; the function adds the Anthropic API key, the safety rules, the latest NHC advisory and outlook (fetched on the server, cached 10 minutes) and the visitor's risk report, then asks Claude and returns only the answer text. The key never reaches the browser.
+
+To turn it on: in Vercel, open the project's Settings, Environment Variables, add `ANTHROPIC_API_KEY` (Production), save, then redeploy the latest deployment. The chat box stays hidden until the key exists.
+
+Safeguards: requests are accepted only from this site, each visitor is limited to 20 messages an hour (best effort, per server instance), answers are capped at 700 tokens, and only the last 10 messages are sent. Set a monthly spending limit in the Anthropic Console as the real backstop. Optional settings: `ANTHROPIC_MODEL` (default `claude-haiku-5-5`) and `ALLOWED_ORIGINS` (comma-separated, for a custom domain).
