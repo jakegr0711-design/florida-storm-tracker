@@ -94,6 +94,7 @@ section{margin-top:16px}
 .skel{color:var(--muted);font-size:14px}
 ul.tight{margin:4px 0 0;padding-left:18px;font-size:14px}
 .leaflet-container{font:13px var(--display)}
+.osm-dark{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}
 .lbl{background:transparent;border:0;box-shadow:none;font:600 11px var(--mono);color:#1d2128;text-shadow:0 0 3px #fff,0 0 3px #fff}
 .chatlog{display:flex;flex-direction:column;gap:10px;max-height:440px;overflow-y:auto;padding:2px;margin-top:10px}
 .msg{max-width:78ch;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.55}
@@ -174,14 +175,10 @@ ul.tight{margin:4px 0 0;padding-left:18px;font-size:14px}
     <div class="side">
       <div id="storms"><div class="panel skel">Loading active storms...</div></div>
       <div class="panel" id="outlook"><h2>Chance of new storms</h2><p class="skel" style="margin-top:6px">Loading NHC outlook...</p></div>
-      <div class="panel">
-        <h2>Season notes</h2>
-        <ul class="tight">
-          <li>El Ni&ntilde;o is strong and still strengthening (NOAA Climate Prediction Center, Oct 8, 2026). It raises wind shear over the Atlantic, which tears developing storms apart.</li>
-          <li>That is why 2026 has been quiet: 9 named storms, but Isaias on Oct 8 was the first hurricane, the latest first hurricane since 1905.</li>
-          <li>Hurricane season runs through Nov 30. Late-season storms often form in the western Caribbean and Gulf and head toward Florida.</li>
-        </ul>
-        <p class="muted small" style="margin-top:6px">Updated Oct 9, 2026. Storm data on this page is live from NOAA.</p>
+      <div class="panel" id="season">
+        <h2>This season</h2>
+        <div id="seasonbody" style="margin-top:6px"><p class="skel">Loading season totals...</p></div>
+        <p class="muted small" id="seasonfoot" style="margin-top:6px"></p>
       </div>
     </div>
   </div>
@@ -189,7 +186,7 @@ ul.tight{margin:4px 0 0;padding-left:18px;font-size:14px}
 
 <div class="foot">
   <p><b>This is a student science-communication project, not an official warning service.</b> It can be wrong or out of date. For decisions, follow the <a href="https://www.nhc.noaa.gov">National Hurricane Center</a>, your <a href="https://www.weather.gov">local National Weather Service office</a> and your county emergency managers. In an emergency call 911.</p>
-  <p>Data: NOAA National Hurricane Center via NOAA tropical map services; National Weather Service API; FEMA National Flood Hazard Layer; USGS 3D Elevation Program; NOAA HURDAT2 (1851-2025); geocoding by OpenStreetMap Nominatim. Map tiles &copy; OpenStreetMap contributors &copy; CARTO.</p>
+  <p>Data: NOAA National Hurricane Center via NOAA tropical map services; National Weather Service API; FEMA National Flood Hazard Layer; USGS 3D Elevation Program; NOAA HURDAT2 (1851-2025); geocoding by OpenStreetMap Nominatim. Map tiles &copy; Esri, HERE, Garmin, OpenStreetMap contributors and the GIS user community (OpenStreetMap tiles as backup).</p>
   <p id="lastcheck"></p>
 </div>
 </div>
@@ -220,11 +217,27 @@ const store = { get(){ try { return localStorage.getItem("fst_addr"); } catch(e)
 // ---------------------------------------------------------------- map
 const dark = () => document.documentElement.dataset.theme === "dark" || (document.documentElement.dataset.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
 let map = null, tiles = null, liveLayer = null, youLayer = null;
-const tileURL = () => `https://{s}.basemaps.cartocdn.com/${dark() ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png`;
+const ESRI = n => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/${n}/MapServer/tile/{z}/{y}/{x}`;
+const ESRI_ATTR = 'Tiles &copy; <a href="https://www.esri.com">Esri</a>, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+let labels = null, tileErrors = 0, usingOSM = false;
+function setBasemap(){
+  if (!map) return;
+  if (tiles) map.removeLayer(tiles); if (labels) map.removeLayer(labels); labels = null;
+  if (usingOSM) tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 12, className: dark() ? "osm-dark" : "", attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+  else {
+    tiles = L.tileLayer(ESRI(dark() ? "World_Dark_Gray_Base" : "World_Light_Gray_Base"), {maxZoom: 12, attribution: ESRI_ATTR}).addTo(map);
+    labels = L.tileLayer(ESRI(dark() ? "World_Dark_Gray_Reference" : "World_Light_Gray_Reference"), {maxZoom: 12, pane: "labels"}).addTo(map);
+    tiles.on("tileerror", () => { if (++tileErrors > 6 && !usingOSM) { usingOSM = true; setBasemap(); } });
+  }
+  tiles.bringToBack();
+}
+function onTheme(){ setBasemap(); drawLive(); }
 if (window.L) {
   map = L.map("map", {scrollWheelZoom: false, worldCopyJump: true}).setView([26.5, -82], 5);
-  tiles = L.tileLayer(tileURL(), {maxZoom: 12, subdomains: "abcd", attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => tiles.setUrl(tileURL()));
+  map.createPane("labels"); map.getPane("labels").style.zIndex = 450; map.getPane("labels").style.pointerEvents = "none";
+  setBasemap();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", onTheme);
+  new MutationObserver(onTheme).observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]});
   liveLayer = L.layerGroup().addTo(map); youLayer = L.layerGroup().addTo(map);
 } else { $("map").innerHTML = '<p class="skel" style="padding:12px">The map could not load. Storm details are listed beside it.</p>'; }
 const CATCOL = c => ["#5b9bd5","#f2d35b","#f0a63a","#e8702a","#d6361f","#8f0d1e"][Math.max(0, Math.min(5, c))];
@@ -286,6 +299,7 @@ function renderLive(){
   $("lastcheck").textContent = "Live data last checked " + new Date().toLocaleString([], {weekday:"short", hour:"numeric", minute:"2-digit"}) + ". Refresh the page for the latest.";
   drawLive();
 }
+let LAST_FIT = null;
 function drawLive(){
   if (!map) return;
   liveLayer.clearLayers(); const bounds = [];
@@ -304,7 +318,9 @@ function drawLive(){
     L.geoJSON(LIVE.outlook.areas, {style: f => ({color: RC[f.properties.risk7day] || "#f08a24", weight: 2, fillOpacity: .2}), onEachFeature: (f, l) => l.bindTooltip(`7-day chance: ${f.properties.prob7day}`)}).addTo(liveLayer);
     L.geoJSON(LIVE.outlook.pts, {pointToLayer: (f, ll) => L.marker(ll, {icon: L.divIcon({className: "lbl", html: "&#10006;", iconSize: [14,14]})})}).addTo(liveLayer);
   }
-  if (bounds.length) { bounds.push([24.5, -87.6], [31, -80]); map.fitBounds(bounds, {padding: [20, 20], maxZoom: 7}); }
+  const fitKey = LIVE.storms.map(s => s.bin).join(",");
+  if (bounds.length && fitKey !== LAST_FIT) { bounds.push([24.5, -87.6], [31, -80]); map.fitBounds(bounds, {padding: [20, 20], maxZoom: 7}); }
+  LAST_FIT = fitKey;
 }
 
 // ---------------------------------------------------------------- personal report
@@ -333,16 +349,19 @@ async function geocode(text){
   if (!j.length) return null;
   return {lat: +j[0].lat, lon: +j[0].lon, label: j[0].display_name.split(",").slice(0, 4).join(",").trim()};
 }
-async function runReport(loc, typed){
-  $("report").hidden = false; $("rep-place").textContent = loc.label; $("rep-time").textContent = "Checked " + new Date().toLocaleString([], {weekday: "long", hour: "numeric", minute: "2-digit"});
-  $("risks").innerHTML = '<div class="risk"><p class="skel">Building your report...</p></div>'; $("rep-banner").innerHTML = ""; $("alerts").innerHTML = '<span class="skel">Loading...</span>'; $("fc").innerHTML = '<span class="skel">Loading...</span>'; $("details").innerHTML = ""; $("todo").innerHTML = "";
+const STATIC = new Map();
+const once = (k, f) => { if (!STATIC.has(k)) STATIC.set(k, f().catch(e => { STATIC.delete(k); throw e; })); return STATIC.get(k); };
+let CURRENT = null, PREV = null, CHANGE_NOTE = "";
+async function runReport(loc, typed, silent){
+  $("report").hidden = false; $("rep-place").textContent = loc.label;
+  if (!silent) { $("risks").innerHTML = '<div class="risk"><p class="skel">Building your report...</p></div>'; $("rep-banner").innerHTML = ""; $("alerts").innerHTML = '<span class="skel">Loading...</span>'; $("fc").innerHTML = '<span class="skel">Loading...</span>'; $("details").innerHTML = ""; $("todo").innerHTML = ""; }
   if (map) { youLayer.clearLayers(); L.circleMarker([loc.lat, loc.lon], {radius: 8, color: "#fff", weight: 3, fillColor: "#1f6bff", fillOpacity: 1}).bindTooltip("Your location").addTo(youLayer); }
   const ll = `${loc.lat.toFixed(4)},${loc.lon.toFixed(4)}`;
   const [pt, al, fz, el, hist] = await Promise.allSettled([
     getJSON(`https://api.weather.gov/points/${ll}`),
     getJSON(`https://api.weather.gov/alerts/active?point=${ll}`),
-    getJSON(`https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28/query?geometry=${loc.lon},${loc.lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=FLD_ZONE,ZONE_SUBTY,SFHA_TF,STATIC_BFE&returnGeometry=false&f=json`, 20000),
-    getJSON(`https://epqs.nationalmap.gov/v1/json?x=${loc.lon}&y=${loc.lat}&units=Feet&wkid=4326&includeDate=false`, 20000),
+    once("fz" + ll, () => getJSON(`https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28/query?geometry=${loc.lon},${loc.lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=FLD_ZONE,ZONE_SUBTY,SFHA_TF,STATIC_BFE&returnGeometry=false&f=json`, 20000)),
+    once("el" + ll, () => getJSON(`https://epqs.nationalmap.gov/v1/json?x=${loc.lon}&y=${loc.lat}&units=Feet&wkid=4326&includeDate=false`, 20000)),
     flStorms()]);
   // forecast
   let place = null, fcData = null, state = null;
@@ -438,6 +457,17 @@ async function runReport(loc, typed){
     `FEMA flood zone: ${zone ? zone.FLD_ZONE + (zone.ZONE_SUBTY ? " (" + zone.ZONE_SUBTY + ")" : "") + (zone.SFHA_TF === "T" ? ", high-risk flood area" : "") : "unavailable"}`,
     `Ground elevation: ${elev !== null ? Math.round(elev) + " ft" : "unavailable"}`,
     ...risks.map(r => `${r.k} risk (${LEVELS[r.lv].n}): ` + r.why.join(" ").replace(/<[^>]+>/g, ""))].join("\n");
+  const now = new Date().toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+  const sig = {key: ll, alerts: alertsOK ? alerts.map(a => a.event).sort() : null, levels: risks.map(r => r.k + ":" + r.lv).join("|")};
+  if (!silent || !PREV || PREV.key !== ll) CHANGE_NOTE = "";
+  else {
+    const ch = [];
+    if (sig.alerts && PREV.alerts) { sig.alerts.filter(e => !PREV.alerts.includes(e)).forEach(e => ch.push(e + " issued")); PREV.alerts.filter(e => !sig.alerts.includes(e)).forEach(e => ch.push(e + " ended")); }
+    if (!ch.length && sig.levels !== PREV.levels) ch.push("your risk levels changed");
+    if (ch.length) CHANGE_NOTE = "Changed at " + now + ": " + ch.join(", ") + ".";
+  }
+  PREV = sig;
+  $("rep-time").innerHTML = `Updated ${esc(now)}. Refreshes automatically every 5 minutes.` + (CHANGE_NOTE ? ` <b style="color:var(--act)">${esc(CHANGE_NOTE)}</b>` : "");
   $("todo").innerHTML = urgent ? `<ul class="tight"><li><b>If officials order an evacuation for your zone, leave.</b> Storm surge causes most hurricane deaths.</li><li>If you are staying, shelter in a small interior room away from windows, on the lowest floor that will not flood.</li><li>Do not drive once tropical-storm-force winds arrive, and never drive or walk through floodwater.</li><li>Run generators outdoors only, at least 20 feet from doors and windows. Never in a garage.</li><li>Emergencies: call 911. Shelters and help: dial 211 or the <a href="https://www.redcross.org/get-help/disaster-relief-and-recovery-services/find-an-open-shelter.html">Red Cross shelter finder</a>.</li></ul>`
     : `<ul class="tight"><li>Know your evacuation zone and where you would go.</li><li>Keep a kit: 1 gallon of water per person per day for at least 3 days, food, medicine, flashlights, batteries, phone power banks, cash, documents in a waterproof bag. <a href="https://www.ready.gov/kit">Full checklist</a></li><li>Check your flood insurance. Most home policies do not cover flooding, and new flood policies usually take 30 days to start.</li><li>Have two ways to get warnings, such as phone alerts and a weather radio.</li></ul>`;
 }
@@ -479,7 +509,7 @@ async function search(){
     const loc = await geocode(text);
     if (!loc) { msg.textContent = "Could not find that address. Try adding the city and state."; return; }
     msg.textContent = ""; store.set(text); forget.hidden = false;
-    await runReport(loc, text); $("report").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start"});
+    CURRENT = {loc, typed: text}; await runReport(loc, text); $("report").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start"});
   } catch (e) { msg.textContent = "Could not reach the address lookup service. Check your connection and try again."; }
   finally { go.disabled = false; }
 }
@@ -488,14 +518,41 @@ addr.addEventListener("keydown", e => { if (e.key === "Enter") search(); });
 geo.addEventListener("click", () => {
   if (!navigator.geolocation) { msg.textContent = "This browser cannot share your location. Type your address instead."; return; }
   msg.textContent = "Getting your location...";
-  navigator.geolocation.getCurrentPosition(p => { msg.textContent = ""; runReport({lat: p.coords.latitude, lon: p.coords.longitude, label: "Your current location"}, null); },
+  navigator.geolocation.getCurrentPosition(p => { msg.textContent = ""; CURRENT = {loc: {lat: p.coords.latitude, lon: p.coords.longitude, label: "Your current location"}, typed: null}; runReport(CURRENT.loc, null); },
     () => { msg.textContent = "Location was not shared. Type your address instead."; }, {timeout: 15000, maximumAge: 600000});
 });
 forget.addEventListener("click", () => { store.del(); addr.value = ""; forget.hidden = true; msg.textContent = "Your saved address was removed from this device."; });
 
 // ---------------------------------------------------------------- start
 const saved = store.get();
-loadLive().catch(() => { LIVE.ok = false; renderLive(); }).then(() => { if (saved) { addr.value = saved; forget.hidden = false; search(); } });
+async function loadSeason(){
+  const body = $("seasonbody"), foot = $("seasonfoot"), time = new Date().toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+  try {
+    const j = await getJSON("api/season", 20000), s = j.season, e = j.enso, items = [];
+    if (!s && !(e && e.status)) throw new Error("no data");
+    const pl = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+    if (s) items.push(`<b>${s.year} Atlantic season so far:</b> ${pl(s.named, "named storm")}, ${pl(s.hurricanes, "hurricane")}, ${s.majors} major (Category 3+).` + (s.storms.length ? ` Most recent: ${esc(s.storms[s.storms.length - 1].name)}.` : ""));
+    if (e && e.status) items.push(`<b>El Ni&ntilde;o / La Ni&ntilde;a:</b> ${esc(e.status)}.${e.synopsis ? " " + esc(e.synopsis) : ""}` +
+      (/El Ni\u00f1o (Advisory|Watch)/.test(e.status) ? " El Ni&ntilde;o raises wind shear over the Atlantic, which tends to tear developing storms apart." : /La Ni\u00f1a (Advisory|Watch)/.test(e.status) ? " La Ni&ntilde;a lowers wind shear over the Atlantic, which tends to allow more hurricanes." : ""));
+    const m = new Date().getMonth() + 1;
+    items.push(m >= 6 && m <= 11 ? "Hurricane season runs June 1 to November 30." + (m >= 10 ? " Late-season storms often form in the western Caribbean and Gulf and head toward Florida." : " Activity usually peaks from mid-August to mid-October.") : "Hurricane season is over. The next one starts June 1.");
+    body.innerHTML = '<ul class="tight">' + items.map(i => `<li>${i}</li>`).join("") + "</ul>";
+    foot.textContent = `Live from NHC best-track records and the NOAA Climate Prediction Center${e && e.issued ? " (ENSO update of " + e.issued + ")" : ""}. Checked ${time}.`;
+  } catch (err) { body.innerHTML = '<p class="small">Season totals are not available right now. See <a href="https://www.nhc.noaa.gov">hurricanes.gov</a>.</p>'; foot.textContent = ""; }
+}
+let lastRefresh = 0, refreshing = false;
+async function refreshAll(){
+  if (refreshing) return; refreshing = true; lastRefresh = Date.now();
+  try {
+    await loadLive().catch(() => { LIVE.ok = false; renderLive(); });
+    if (CURRENT) await runReport(CURRENT.loc, CURRENT.typed, true).catch(() => {});
+  } finally { refreshing = false; }
+}
+refreshAll().then(() => { if (saved) { addr.value = saved; forget.hidden = false; search(); } });
+loadSeason();
+setInterval(() => { if (!document.hidden) refreshAll(); }, 5 * 60e3);
+setInterval(() => { if (!document.hidden) loadSeason(); }, 60 * 60e3);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - lastRefresh > 3 * 60e3) { refreshAll(); loadSeason(); } });
 })();
 </script>
 </body>
