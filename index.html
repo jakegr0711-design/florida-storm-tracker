@@ -4,225 +4,322 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Florida Storm Tracker</title>
-<meta name="description" content="Live tropical storm tracking and a personal hurricane risk report for any Florida address.">
+<meta name="description" content="Live tropical storm tracking, a personal hurricane risk report for any Florida address, and an AI guide that explains what the official forecast means for you.">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@87.5,600;87.5,700;100,400;100,500;100,600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Public+Sans:wght@400;500;600;700&display=swap">
 <style>
-/* Layout: weather-app column. Location search on top, personal report next, live tropics map and status below. */
+/* Concept: a storm briefing. Deep Gulf navy status board up top, sea-spray working surface below.
+   Red belongs to danger only (it is the hurricane warning flag). Teal is for anything you can press.
+   Three tabs like a weather app: Now / My risk / Ask. */
 :root{
-  --bg:#f2f1ed; --panel:#ffffff; --fg:#1d2128; --muted:#5b6370; --line:#dcd8cf; --accent:#c8471b;
-  --act:#b3261e; --act-bg:#fbe9e7; --high:#c25b00; --high-bg:#fdf0e3; --watch:#8a6d00; --watch-bg:#fbf5dc;
-  --low:#2f6b4f; --low-bg:#e8f3ed; --info:#3d5a80; --info-bg:#e9eef5;
-  --display:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --gulf:#0f2d3a; --gulf-2:#174556; --spray:#eef3f5; --panel:#ffffff; --ink:#12202a; --muted:#53636f; --line:#d3dee3;
+  --teal:#13707c; --teal-ink:#ffffff; --teal-soft:#e1f0f1; --flag:#d62828; --onhero:#e9f3f6; --onhero-muted:#a9c3cc;
+  --act:#b42318; --act-bg:#fde8e6; --high:#b54708; --high-bg:#fdf0e1; --watch:#7a5d00; --watch-bg:#fbf3d2;
+  --low:#22684a; --low-bg:#e4f2eb; --info:#2f5f8a; --info-bg:#e6eef6;
+  --display:"Barlow Condensed","Arial Narrow","Roboto Condensed",sans-serif; --body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --fg:var(--ink); --bg:var(--spray); --accent:var(--teal); --mono:var(--body);
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#15181d; --panel:#1f232a; --fg:#ebe8e1; --muted:#9aa2ad; --line:#343a43; --accent:#ff7a4a;
-  --act:#ff8a80; --act-bg:#3a1f1d; --high:#ffad66; --high-bg:#3a2a1a; --watch:#f0d264; --watch-bg:#353018;
-  --low:#7fd1a8; --low-bg:#1b3328; --info:#9ab8e0; --info-bg:#1e2a3a; color-scheme:dark}}
+  --gulf:#081b23; --gulf-2:#0e2a35; --spray:#0b161b; --panel:#12212a; --ink:#e3ecef; --muted:#93a7b1; --line:#24404c;
+  --teal:#4fb3bf; --teal-ink:#05242b; --teal-soft:#123840; --flag:#ff5c5c; --onhero:#e3ecef; --onhero-muted:#8fb0bb;
+  --act:#ff8b7e; --act-bg:#3b1d1a; --high:#ffb066; --high-bg:#3a2816; --watch:#f1d36a; --watch-bg:#332c12;
+  --low:#7fd3a9; --low-bg:#143126; --info:#9fc0e6; --info-bg:#172a3d; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#15181d; --panel:#1f232a; --fg:#ebe8e1; --muted:#9aa2ad; --line:#343a43; --accent:#ff7a4a;
-  --act:#ff8a80; --act-bg:#3a1f1d; --high:#ffad66; --high-bg:#3a2a1a; --watch:#f0d264; --watch-bg:#353018;
-  --low:#7fd1a8; --low-bg:#1b3328; --info:#9ab8e0; --info-bg:#1e2a3a; color-scheme:dark}
+  --gulf:#081b23; --gulf-2:#0e2a35; --spray:#0b161b; --panel:#12212a; --ink:#e3ecef; --muted:#93a7b1; --line:#24404c;
+  --teal:#4fb3bf; --teal-ink:#05242b; --teal-soft:#123840; --flag:#ff5c5c; --onhero:#e3ecef; --onhero-muted:#8fb0bb;
+  --act:#ff8b7e; --act-bg:#3b1d1a; --high:#ffb066; --high-bg:#3a2816; --watch:#f1d36a; --watch-bg:#332c12;
+  --low:#7fd3a9; --low-bg:#143126; --info:#9fc0e6; --info-bg:#172a3d; color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0}
-body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--display);padding-inline:16px;padding-block:0 40px}
-.wrap{max-width:1180px;margin:0 auto}
-a{color:var(--accent)}
-h1,h2,h3{margin:0;text-wrap:balance}
-h1{font-size:clamp(22px,3.2vw,30px);font-weight:700;font-stretch:87.5%;letter-spacing:-.01em}
-h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-h3{font-size:17px;font-weight:700;font-stretch:87.5%}
+body{background:var(--spray);color:var(--ink);font:16px/1.55 var(--body);font-variant-numeric:tabular-nums}
+a{color:var(--teal);text-underline-offset:2px}
+h1,h2,h3{margin:0;text-wrap:balance;font-family:var(--display);font-weight:700;letter-spacing:.005em}
+h2{font-size:22px;line-height:1.15}
+h3{font-size:20px;line-height:1.15}
 p{margin:0}
 .muted{color:var(--muted)}
-.small{font-size:13px}
-.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
-header.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding-block:14px 10px}
-nav{display:flex;gap:14px;font-size:14px}
-nav a{color:var(--fg);text-decoration:none;border-bottom:2px solid transparent;padding-bottom:2px}
-nav a[aria-current="page"]{border-color:var(--accent)}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}
-.search{display:flex;flex-direction:column;gap:8px}
-.searchrow{display:flex;gap:8px;flex-wrap:wrap}
-.searchrow input{flex:1 1 260px;min-width:0;font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
-.btn{font:inherit;font-size:15px;font-weight:600;border-radius:6px;padding:10px 16px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
-.btn.ghost{background:transparent;color:var(--fg);border-color:var(--line);font-weight:500}
-.btn:disabled{opacity:.55;cursor:default}
-button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.linkbtn{background:none;border:0;padding:0;font:inherit;color:var(--accent);text-decoration:underline;cursor:pointer}
-.status{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-block:12px}
-.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600;border:1px solid}
+.small{font-size:14px}
+.mono{font-variant-numeric:tabular-nums}
+.sr-only{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px}
+button:focus-visible,input:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+
+/* ---- top bar and tabs */
+.bar{background:var(--gulf);color:var(--onhero);padding-top:env(safe-area-inset-top,0px)}
+.bar .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:60px}
+.brand{display:flex;align-items:center;gap:10px;color:var(--onhero);text-decoration:none;font:700 24px/1 var(--display);letter-spacing:.01em}
+.flag{display:inline-block;width:22px;height:16px;border-radius:2px;flex:none;background:linear-gradient(#111,#111) center/7px 7px no-repeat,#e02b2b;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+.tabs{display:flex;gap:4px}
+.tab{appearance:none;background:none;border:0;color:var(--onhero-muted);font:600 15px/1 var(--body);padding:10px 14px;border-radius:999px;cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:8px}
+.tab:hover{color:var(--onhero)}
+.tab[aria-selected="true"]{background:rgba(255,255,255,.12);color:#fff}
+.tab svg{width:18px;height:18px;flex:none}
+@media (max-width:720px){
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:var(--gulf);justify-content:space-around;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(255,255,255,.08)}
+  .tab{flex-direction:column;gap:4px;font-size:12px;padding:6px 10px;border-radius:10px}
+  body{padding-bottom:76px}
+}
+
+/* ---- Now: the status board */
+.hero{background:var(--gulf);color:var(--onhero);padding-block:28px 34px}
+.hero .wrap{display:flex;flex-direction:column;gap:10px}
+.hero-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.hero h1{font-size:clamp(40px,7vw,76px);line-height:.95;letter-spacing:-.005em;max-width:20ch;color:#fff}
+.hero-flags{display:flex;gap:8px;align-items:center}
+.hero-flags .flag{width:44px;height:32px;background:linear-gradient(#111,#111) center/14px 14px no-repeat,#e02b2b}
+.hero-flags .calm{width:16px;height:16px;border-radius:50%;background:#4fd1a5;box-shadow:0 0 0 6px rgba(79,209,165,.18)}
+.hero-sub{font-size:18px;color:var(--onhero);max-width:60ch}
+.hero-meta{font-size:14px;color:var(--onhero-muted)}
+.hero a{color:#9be3ec}
+.now{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;margin-top:-18px}
+@media (max-width:920px){.now{grid-template-columns:1fr}}
+#map{width:100%;height:560px;max-height:72vh;border-radius:14px;background:var(--panel);box-shadow:0 1px 0 var(--line),0 10px 30px rgba(15,45,58,.12)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--muted);margin-top:10px}
+.legend i{display:inline-block;width:18px;height:0;border-top:3px solid;vertical-align:middle;margin-right:6px}
+.legend i.cone{height:10px;border:1px solid #e8890c;background:rgba(242,165,65,.25)}
+.side{display:flex;flex-direction:column;gap:14px;min-width:0}
+
+/* ---- surfaces */
+.panel{background:var(--panel);border-radius:14px;padding:18px;border:1px solid var(--line)}
+.panel h2{margin-bottom:8px}
+.storm{display:flex;flex-direction:column;gap:8px;border-left:6px solid var(--flag)}
+.storm .big{font:700 56px/0.9 var(--display);display:block;margin-bottom:2px}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:15px;margin:0}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+ul.tight{margin:4px 0 0;padding-left:18px;font-size:15px;display:flex;flex-direction:column;gap:6px}
+.skel{color:var(--muted);font-size:15px}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600;border:1px solid;white-space:nowrap}
 .pill.act{color:var(--act);background:var(--act-bg);border-color:var(--act)}
 .pill.high{color:var(--high);background:var(--high-bg);border-color:var(--high)}
 .pill.watch{color:var(--watch);background:var(--watch-bg);border-color:var(--watch)}
 .pill.low{color:var(--low);background:var(--low-bg);border-color:var(--low)}
 .pill.info{color:var(--info);background:var(--info-bg);border-color:var(--info)}
-section{margin-top:16px}
-.report-head{display:flex;flex-direction:column;gap:6px}
-.banner{border-radius:8px;padding:12px 14px;border:1px solid}
-.banner.act{background:var(--act-bg);border-color:var(--act);color:var(--fg)}
+.btn{font:600 16px/1 var(--body);border-radius:999px;padding:13px 20px;border:1px solid var(--teal);background:var(--teal);color:var(--teal-ink);cursor:pointer;display:inline-flex;align-items:center;gap:8px;justify-content:center}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn:disabled{opacity:.55;cursor:default}
+.linkbtn{background:none;border:0;padding:0;font:inherit;color:var(--teal);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+section.tabpanel{padding-block:0 40px}
+
+/* ---- My risk */
+.locate{margin-top:24px;display:flex;flex-direction:column;gap:12px}
+.locate h1{font-size:clamp(34px,5vw,52px);line-height:1}
+.searchrow{display:flex;gap:8px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px}
+.searchrow input{flex:1 1 240px;min-width:0;font:inherit;font-size:17px;padding:10px 14px;border:0;background:transparent;color:var(--ink)}
+.searchrow input:focus-visible{outline:none}
+.searchrow:focus-within{outline:3px solid var(--teal);outline-offset:2px}
+@media (max-width:560px){.searchrow{border-radius:18px}.searchrow .btn{flex:1}}
+.gets{display:flex;flex-wrap:wrap;gap:8px}
+.gets span{font-size:14px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+#report{margin-top:28px}
+.report-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px}
+.report-head h2{font-size:clamp(28px,4vw,40px);line-height:1}
+.banner{border-radius:14px;padding:14px 18px;border:1px solid;font-size:16px}
+.banner.act{background:var(--act-bg);border-color:var(--act)}
 .banner.act b{color:var(--act)}
 .banner.ok{background:var(--low-bg);border-color:var(--low)}
-.risks{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:12px}
-.risk{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0;border-top:4px solid var(--line)}
+.risks{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;margin-top:14px}
+.risk{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;min-width:0;border-left:6px solid var(--line)}
 .risk.info{grid-column:1/-1}
-.risk.act{border-top-color:var(--act)} .risk.high{border-top-color:var(--high)} .risk.watch{border-top-color:var(--watch)} .risk.low{border-top-color:var(--low)} .risk.info{border-top-color:var(--info)}
+.risk.act{border-left-color:var(--act)} .risk.high{border-left-color:var(--high)} .risk.watch{border-left-color:var(--watch)} .risk.low{border-left-color:var(--low)} .risk.info{border-left-color:var(--info)}
 .risk .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.risk p{font-size:14px}
-.grid2{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:12px;margin-top:12px}
+.risk p{font-size:15px}
+.grid2{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;margin-top:14px}
 @media (max-width:860px){.grid2{grid-template-columns:1fr}}
-.alerts{display:flex;flex-direction:column;gap:8px}
-.alert{border-left:4px solid var(--line);padding:4px 0 4px 10px}
+.alerts{display:flex;flex-direction:column;gap:10px}
+.alert{border-left:4px solid var(--line);padding:2px 0 2px 12px}
 .alert.Extreme{border-color:var(--act)} .alert.Severe{border-color:var(--high)} .alert.Moderate{border-color:var(--watch)} .alert.Minor{border-color:var(--info)}
 .fc{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
-.period{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:6px;padding:8px}
-.period img{width:44px;height:44px;border-radius:4px;flex:none}
-.period b{display:block;font-size:13px}
-.period .t{font:500 20px/1.1 var(--mono)}
-.kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 12px;font-size:14px}
-.kv dt{color:var(--muted)} .kv dd{margin:0}
-.live{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;margin-top:12px}
-@media (max-width:900px){.live{grid-template-columns:1fr}}
-#map{width:100%;height:520px;max-height:70vh;border-radius:8px;border:1px solid var(--line);background:var(--panel)}
-.side{display:flex;flex-direction:column;gap:12px;min-width:0}
-.storm{display:flex;flex-direction:column;gap:6px}
-.storm .big{font:500 28px/1 var(--mono)}
-.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted);margin-top:6px}
-.legend i{display:inline-block;width:18px;height:0;border-top:3px solid;vertical-align:middle;margin-right:5px}
-.legend i.cone{height:10px;border:1px solid var(--muted);background:rgba(200,71,27,.15)}
-.foot{margin-top:24px;font-size:13px;color:var(--muted);max-width:90ch;display:flex;flex-direction:column;gap:8px}
-.skel{color:var(--muted);font-size:14px}
-ul.tight{margin:4px 0 0;padding-left:18px;font-size:14px}
-.leaflet-container{font:13px var(--display)}
-.osm-dark{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}
-.lbl{background:transparent;border:0;box-shadow:none;font:600 11px var(--mono);color:#1d2128;text-shadow:0 0 3px #fff,0 0 3px #fff}
-.chatlog{display:flex;flex-direction:column;gap:10px;max-height:440px;overflow-y:auto;padding:2px;margin-top:10px}
-.msg{max-width:78ch;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.55}
-.msg.u{align-self:flex-end;background:var(--bg);border:1px solid var(--line);border-radius:10px 10px 2px 10px;padding:8px 12px}
-.msg.a{align-self:flex-start;border-left:3px solid var(--accent);padding:2px 0 2px 12px}
-.msg.sys{color:var(--muted);font-size:13px}
-.about{margin-top:10px;border:1px solid var(--line);border-radius:6px;padding:8px 12px}
-.about summary{cursor:pointer;font-weight:600;font-size:14px}
-.aboutgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:10px}
-.aboutgrid fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;min-width:0}
-.aboutgrid legend{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;padding:0}
-.aboutgrid label{font-size:14px;display:flex;gap:6px;align-items:flex-start}
-.meta{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:12px;color:var(--muted);margin:-4px 0 0 15px}
-.fb{background:none;border:1px solid var(--line);border-radius:999px;padding:2px 10px;font:inherit;font-size:12px;color:var(--fg);cursor:pointer}
+.period{display:flex;gap:10px;align-items:flex-start;background:var(--spray);border-radius:10px;padding:10px}
+.period img{width:44px;height:44px;border-radius:8px;flex:none}
+.period b{display:block;font-size:14px}
+.period .t{font:700 28px/1 var(--display)}
+
+/* ---- Ask: Storm Guide */
+.guide{margin-top:24px;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;height:min(78vh,760px);min-height:520px}
+.guide-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.guide-id{display:flex;align-items:center;gap:12px;min-width:0}
+.guide-id .flag{width:36px;height:26px;background:linear-gradient(#111,#111) center/11px 11px no-repeat,#e02b2b}
+.guide-id h1{font-size:28px;line-height:1}
+.guide-id p{font-size:14px;color:var(--muted)}
+.about{position:relative}
+.about summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-weight:600;font-size:14px;background:var(--panel)}
+.about summary::-webkit-details-marker{display:none}
+.about[open] summary{background:var(--teal-soft);border-color:var(--teal)}
+#about-sum{font-weight:500;color:var(--muted)}
+.aboutpanel{border-bottom:1px solid var(--line);padding:14px 18px;background:var(--panel)}
+.aboutgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.aboutgrid fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;min-width:0}
+.aboutgrid legend{font-weight:700;font-size:15px;margin-bottom:4px;padding:0}
+.aboutgrid label{font-size:15px;display:flex;gap:8px;align-items:flex-start}
+.ctx{padding:8px 18px;font-size:14px;color:var(--muted);background:var(--teal-soft);border-bottom:1px solid var(--line)}
+.ctx b{color:var(--ink)}
+.chatlog{flex:1;display:flex;flex-direction:column;gap:12px;overflow-y:auto;padding:18px;background:var(--spray)}
+.msg{max-width:min(70ch,86%);white-space:pre-wrap;overflow-wrap:anywhere;font-size:16px;line-height:1.55}
+.msg.u{align-self:flex-end;background:var(--teal);color:var(--teal-ink);border-radius:18px 18px 4px 18px;padding:10px 15px}
+.msg.a{align-self:flex-start;position:relative;margin-left:40px;background:var(--panel);border:1px solid var(--line);border-radius:18px 18px 18px 4px;padding:11px 15px}
+.msg.a::before{content:"";position:absolute;left:-40px;top:2px;width:28px;height:20px;border-radius:3px;background:linear-gradient(#111,#111) center/8px 8px no-repeat,#e02b2b}
+.msg.typing{display:flex;gap:5px;align-items:center;min-height:42px}
+.msg.typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);opacity:.5}
+@media (prefers-reduced-motion:no-preference){.msg.typing i{animation:dot 1.2s infinite ease-in-out}.msg.typing i:nth-child(2){animation-delay:.15s}.msg.typing i:nth-child(3){animation-delay:.3s}}
+@keyframes dot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+.msg.sys{color:var(--muted);font-size:14px;padding:0 18px}
+.meta{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:13px;color:var(--muted);margin:-4px 0 4px 40px;max-width:86%}
+.meta > span:first-child{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.fb{background:none;border:1px solid var(--line);border-radius:999px;padding:3px 11px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer}
+.fb:hover{border-color:var(--teal)}
 .fb:disabled{opacity:.55;cursor:default}
-.meta select{font:inherit;font-size:12px;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:2px 4px}
-.ask{display:flex;gap:8px;margin-top:10px}
-.ask textarea{flex:1;min-width:0;resize:vertical;min-height:46px;font:inherit;font-size:16px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
-.sugg{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.chip{border:1px solid var(--line);background:transparent;color:var(--fg);border-radius:999px;padding:4px 11px;font:inherit;font-size:13px;cursor:pointer}
+.meta select{font:inherit;font-size:13px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 6px}
+.sugg{display:flex;gap:8px;overflow-x:auto;padding:10px 18px 0;scrollbar-width:none}
+.chip{flex:none;border:1px solid var(--teal);background:var(--teal-soft);color:var(--ink);border-radius:999px;padding:7px 13px;font:inherit;font-size:14px;cursor:pointer;white-space:nowrap}
+.chip:hover{background:var(--panel)}
 .chip:disabled{opacity:.5;cursor:default}
-@media (prefers-reduced-motion:no-preference){.risk{transition:transform .15s}}
+.ask{display:flex;gap:8px;align-items:flex-end;padding:10px 14px 14px}
+.ask textarea{flex:1;min-width:0;resize:none;min-height:50px;max-height:160px;font:inherit;font-size:16px;background:var(--spray);color:var(--ink);border:1px solid var(--line);border-radius:22px;padding:13px 16px}
+.ask .btn{width:50px;height:50px;padding:0;border-radius:50%}
+.ask .btn svg{width:22px;height:22px}
+.offline{margin-top:24px}
+
+/* ---- footer + map bits */
+.foot{margin-top:8px;padding-block:24px 32px;font-size:14px;color:var(--muted);display:flex;flex-direction:column;gap:8px}
+.foot p{max-width:90ch}
+.leaflet-container{font:13px var(--body)}
+.osm-dark{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}
+.lbl{background:transparent;border:0;box-shadow:none;font:700 12px var(--body);color:#12202a;text-shadow:0 0 3px #fff,0 0 3px #fff}
 </style>
 </head>
 <body>
-<div class="wrap">
-<header class="top">
-  <h1>Florida Storm Tracker</h1>
-  <nav aria-label="Pages"><a href="index.html" aria-current="page">Live + my risk</a><a href="history.html">Storm history since 1851</a></nav>
+<header class="bar">
+  <div class="wrap">
+    <a class="brand" href="index.html#now"><span class="flag" aria-hidden="true"></span>Florida Storm Tracker</a>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button class="tab" role="tab" type="button" data-tab="now" id="t-now" aria-controls="tab-now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 4a8 8 0 1 0 8 8"/><path d="M12 8a4 4 0 1 0 4 4"/><circle cx="12" cy="12" r="1"/></svg>Now</button>
+      <button class="tab" role="tab" type="button" data-tab="risk" id="t-risk" aria-controls="tab-risk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>My risk</button>
+      <button class="tab" role="tab" type="button" data-tab="ask" id="t-ask" aria-controls="tab-ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 18l-1 3 4-2h9a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v8"/></svg>Ask</button>
+      <a class="tab" href="history.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>History</a>
+    </nav>
+  </div>
 </header>
 
-<div class="panel search" role="search">
-  <label for="addr"><b>Your address</b> <span class="muted small">Get the alerts, forecast and flood risk for your exact location.</span></label>
-  <div class="searchrow">
-    <input id="addr" type="text" autocomplete="street-address" placeholder="Example: 1 N Palafox St, Pensacola, FL">
-    <button class="btn" id="go" type="button">Check my risk</button>
-    <button class="btn ghost" id="geo" type="button">Use my location</button>
-  </div>
-  <p class="muted small">Your address is sent to OpenStreetMap to find it on the map, and its coordinates go to NOAA, FEMA and USGS. Nothing is saved except, on this device only, your last search. <button class="linkbtn small" id="forget" type="button" hidden>Forget my address</button></p>
-  <p id="searchmsg" class="small" role="status"></p>
-</div>
-
-<div class="status" id="status" aria-live="polite"><span class="skel">Checking the tropics...</span></div>
-
-<section id="report" hidden aria-labelledby="rep-h">
-  <div class="report-head">
-    <h2 id="rep-h">Your risk report</h2>
-    <h3 id="rep-place"></h3>
-    <p class="muted small" id="rep-time"></p>
-  </div>
-  <div id="rep-banner" style="margin-top:10px"></div>
-  <div class="risks" id="risks"></div>
-  <div class="grid2">
-    <div class="panel"><h2>Active alerts here</h2><div class="alerts" id="alerts" style="margin-top:8px"><span class="skel">Loading...</span></div></div>
-    <div class="panel"><h2>Forecast</h2><div class="fc" id="fc" style="margin-top:8px"><span class="skel">Loading...</span></div><p class="small" id="fclink" style="margin-top:8px"></p></div>
-  </div>
-  <div class="grid2">
-    <div class="panel"><h2>Your location details</h2><dl class="kv" id="details" style="margin-top:8px"></dl></div>
-    <div class="panel"><h2>What to do</h2><div id="todo" style="margin-top:6px"></div></div>
-  </div>
-</section>
-
-<section id="chat" hidden aria-labelledby="chat-h">
-  <div class="panel">
-    <h2 id="chat-h">Ask the hurricane assistant</h2>
-    <p class="muted small" style="margin-top:4px">It explains what official forecasts and warnings mean for you and where to turn next. It is an AI student project, not an official source: it can be wrong, and it cannot make decisions for you. Follow local officials. In an emergency call 911.</p>
-    <details class="about" id="about">
-      <summary>About you (optional): helps the assistant fit its answers to your situation</summary>
-      <div class="aboutgrid">
-        <fieldset><legend>Experience</legend>
-          <label><input type="radio" name="lvl" id="lvl-any" value="" checked> Not sure</label>
-          <label><input type="radio" name="lvl" id="lvl-beginner" value="beginner"> New to hurricanes or to Florida</label>
-          <label><input type="radio" name="lvl" id="lvl-expert" value="expert"> I know weather terms</label>
-        </fieldset>
-        <fieldset><legend>Your household</legend>
-          <label><input type="checkbox" id="need-pets" value="pets"> Pets</label>
-          <label><input type="checkbox" id="need-medical" value="medical"> Medical needs or disability</label>
-          <label><input type="checkbox" id="need-mobilehome" value="mobilehome"> Mobile or manufactured home</label>
-          <label><input type="checkbox" id="need-nocar" value="nocar"> No car</label>
-          <label><input type="checkbox" id="need-renter" value="renter"> I rent</label>
-          <label><input type="checkbox" id="need-caregiver" value="caregiver"> I care for an older adult or child</label>
-        </fieldset>
-        <fieldset><legend>Language</legend>
-          <label><input type="radio" name="lang" id="lang-en" value="en" checked> English</label>
-          <label><input type="radio" name="lang" id="lang-es" value="es"> Espa&ntilde;ol</label>
-        </fieldset>
-      </div>
-      <p class="muted small" style="margin-top:8px">Saved only on this device and sent with your questions. Nothing here identifies you.</p>
-    </details>
-    <div class="chatlog" id="chatlog" aria-live="polite"><div class="msg a">Hi. I can help you understand what the forecast and any warnings mean for you, sort out claims you've heard, and find the right official help. Where are you, and what would you like to know?</div></div>
-    <div class="sugg" id="sugg"></div>
-    <div class="ask">
-      <label for="q" style="position:absolute;left:-9999px">Your question</label>
-      <textarea id="q" rows="2" maxlength="1500" placeholder="Example: I live in a mobile home near Tampa. What should I plan for?"></textarea>
-      <button class="btn" id="send" type="button">Send</button>
+<main>
+<section class="tabpanel" id="tab-now" role="tabpanel" aria-labelledby="t-now">
+  <div class="hero">
+    <div class="wrap">
+      <div class="hero-row"><div class="hero-flags" id="hero-flags" aria-hidden="true"></div><h1 id="hero-title">Checking the tropics</h1></div>
+      <p class="hero-sub" id="hero-sub">Loading the latest from the National Hurricane Center.</p>
+      <p class="hero-meta" id="lastcheck"></p>
+      <div class="sr-only" id="status" aria-live="polite"></div>
     </div>
-    <p class="msg sys" id="chatnote" style="margin-top:6px"></p>
   </div>
-</section>
-
-<section aria-labelledby="live-h">
-  <h2 id="live-h">The tropics right now</h2>
-  <div class="live">
-    <div>
-      <div id="map" role="region" aria-label="Map of active storms, forecast cones and warnings"></div>
-      <div class="legend">
-        <span><i class="cone"></i>Forecast cone</span><span><i style="border-color:#1d2128;border-top-style:dashed"></i>Forecast track</span><span><i style="border-color:#7a7f87"></i>Past track</span>
-        <span><i style="border-color:#e3001b"></i>Hurricane warning</span><span><i style="border-color:#ff8ad0"></i>Hurricane watch</span><span><i style="border-color:#1f6bff"></i>Tropical storm warning</span><span><i style="border-color:#f5c400"></i>Tropical storm watch</span>
+  <div class="wrap">
+    <div class="now">
+      <div>
+        <div id="map" role="region" aria-label="Map of active storms, forecast cones and warnings"></div>
+        <div class="legend">
+          <span><i class="cone"></i>Forecast cone</span><span><i style="border-color:var(--ink);border-top-style:dashed"></i>Forecast track</span><span><i style="border-color:#7a7f87"></i>Past track</span>
+          <span><i style="border-color:#e3001b"></i>Hurricane warning</span><span><i style="border-color:#ff8ad0"></i>Hurricane watch</span><span><i style="border-color:#1f6bff"></i>Tropical storm warning</span><span><i style="border-color:#f5c400"></i>Tropical storm watch</span>
+        </div>
       </div>
-    </div>
-    <div class="side">
-      <div id="storms"><div class="panel skel">Loading active storms...</div></div>
-      <div class="panel" id="outlook"><h2>Chance of new storms</h2><p class="skel" style="margin-top:6px">Loading NHC outlook...</p></div>
-      <div class="panel" id="season">
-        <h2>This season</h2>
-        <div id="seasonbody" style="margin-top:6px"><p class="skel">Loading season totals...</p></div>
-        <p class="muted small" id="seasonfoot" style="margin-top:6px"></p>
+      <div class="side">
+        <div id="storms"><div class="panel skel">Loading active storms...</div></div>
+        <div class="panel" id="outlook"><h2>Chance of new storms</h2><p class="skel">Loading NHC outlook...</p></div>
+        <div class="panel" id="season">
+          <h2>This season</h2>
+          <div id="seasonbody"><p class="skel">Loading season totals...</p></div>
+          <p class="muted small" id="seasonfoot" style="margin-top:8px"></p>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<div class="foot">
-  <p><b>This is a student science-communication project, not an official warning service.</b> It can be wrong or out of date. For decisions, follow the <a href="https://www.nhc.noaa.gov">National Hurricane Center</a>, your <a href="https://www.weather.gov">local National Weather Service office</a> and your county emergency managers. In an emergency call 911.</p>
-  <p>Data: NOAA National Hurricane Center via NOAA tropical map services; National Weather Service API; FEMA National Flood Hazard Layer; USGS 3D Elevation Program; NOAA HURDAT2 (1851-2025); geocoding by OpenStreetMap Nominatim. Map tiles &copy; Esri, HERE, Garmin, OpenStreetMap contributors and the GIS user community (OpenStreetMap tiles as backup).</p>
-  <p id="lastcheck"></p>
-</div>
-</div>
+<section class="tabpanel" id="tab-risk" role="tabpanel" aria-labelledby="t-risk" hidden>
+  <div class="wrap">
+    <div class="locate" role="search">
+      <h1>What does the weather mean for your home?</h1>
+      <label for="addr" class="sr-only">Your address</label>
+      <div class="searchrow">
+        <input id="addr" type="text" autocomplete="street-address" placeholder="Your address, for example 1 N Palafox St, Pensacola, FL">
+        <button class="btn" id="go" type="button">Check my risk</button>
+        <button class="btn ghost" id="geo" type="button">Use my location</button>
+      </div>
+      <div class="gets" aria-label="What the report includes"><span>Active alerts</span><span>3-day forecast</span><span>FEMA flood zone</span><span>Ground elevation</span><span>Distance from any storm</span><span>Hurricanes nearby since 1851</span></div>
+      <p class="muted small">Your address goes to OpenStreetMap to find it on the map; its coordinates go to NOAA, FEMA and USGS. Only your last search is saved, on this device. <button class="linkbtn small" id="forget" type="button" hidden>Forget my address</button></p>
+      <p id="searchmsg" class="small" role="status"></p>
+    </div>
+
+    <section id="report" hidden aria-labelledby="rep-place">
+      <div class="report-head">
+        <div><h2 id="rep-place"></h2><p class="muted small" id="rep-time" style="margin-top:6px"></p></div>
+        <button class="btn ghost" type="button" data-tab="ask">Ask Storm Guide about this</button>
+      </div>
+      <div id="rep-banner" style="margin-top:14px"></div>
+      <div class="risks" id="risks"></div>
+      <div class="grid2">
+        <div class="panel"><h2>Active alerts here</h2><div class="alerts" id="alerts"><span class="skel">Loading...</span></div></div>
+        <div class="panel"><h2>Forecast</h2><div class="fc" id="fc"><span class="skel">Loading...</span></div><p class="small" id="fclink" style="margin-top:10px"></p></div>
+      </div>
+      <div class="grid2">
+        <div class="panel"><h2>Your location</h2><dl class="kv" id="details"></dl></div>
+        <div class="panel"><h2>What to do</h2><div id="todo"></div></div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<section class="tabpanel" id="tab-ask" role="tabpanel" aria-labelledby="t-ask" hidden>
+  <div class="wrap">
+    <div class="panel offline" id="chatoff">
+      <h2>Storm Guide is offline right now</h2>
+      <p style="margin-top:6px">For official information, see the <a href="https://www.nhc.noaa.gov">National Hurricane Center</a> and your county emergency management. In an emergency call 911.</p>
+    </div>
+    <section id="chat" hidden aria-labelledby="chat-h">
+      <div class="guide">
+        <div class="guide-head">
+          <div class="guide-id"><span class="flag" aria-hidden="true"></span><div><h1 id="chat-h">Storm Guide</h1><p>Explains what official forecasts mean for you. A student AI project: it can be wrong, and it can't decide for you. Emergencies: call 911.</p></div></div>
+          <details class="about" id="about"><summary>Personalize <span id="about-sum"></span></summary></details>
+        </div>
+        <div class="aboutpanel" id="aboutpanel" hidden>
+          <div class="aboutgrid">
+            <fieldset><legend>Experience</legend>
+              <label><input type="radio" name="lvl" id="lvl-any" value="" checked> Not sure</label>
+              <label><input type="radio" name="lvl" id="lvl-beginner" value="beginner"> New to hurricanes or to Florida</label>
+              <label><input type="radio" name="lvl" id="lvl-expert" value="expert"> I know weather terms</label>
+            </fieldset>
+            <fieldset><legend>Your household</legend>
+              <label><input type="checkbox" id="need-pets" value="pets"> Pets</label>
+              <label><input type="checkbox" id="need-medical" value="medical"> Medical needs or disability</label>
+              <label><input type="checkbox" id="need-mobilehome" value="mobilehome"> Mobile or manufactured home</label>
+              <label><input type="checkbox" id="need-nocar" value="nocar"> No car</label>
+              <label><input type="checkbox" id="need-renter" value="renter"> I rent</label>
+              <label><input type="checkbox" id="need-caregiver" value="caregiver"> I care for an older adult or child</label>
+            </fieldset>
+            <fieldset><legend>Language</legend>
+              <label><input type="radio" name="lang" id="lang-en" value="en" checked> English</label>
+              <label><input type="radio" name="lang" id="lang-es" value="es"> Espa&ntilde;ol</label>
+            </fieldset>
+          </div>
+          <p class="muted small" style="margin-top:10px">Saved only on this device and sent with your questions. Nothing here identifies you.</p>
+        </div>
+        <div class="ctx" id="ctxchip"></div>
+        <div class="chatlog" id="chatlog" aria-live="polite"><div class="msg a">Hi, I'm Storm Guide. I can explain what the forecast and any warnings mean for you, sort out claims you've heard, and point you to the right official help. Where are you, and what would you like to know?</div></div>
+        <p class="msg sys" id="chatnote"></p>
+        <div class="sugg" id="sugg" aria-label="Suggested questions"></div>
+        <div class="ask">
+          <label for="q" class="sr-only">Your question</label>
+          <textarea id="q" rows="1" maxlength="1500" placeholder="Ask about your situation, for example: I live in a mobile home near Tampa"></textarea>
+          <button class="btn" id="send" type="button" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"/><path d="M13 6l6 6-6 6"/></svg></button>
+        </div>
+      </div>
+    </section>
+  </div>
+</section>
+</main>
+
+<footer class="wrap foot">
+  <p><b>A student science-communication project, not an official warning service.</b> It can be wrong or out of date. For decisions, follow the <a href="https://www.nhc.noaa.gov">National Hurricane Center</a>, your <a href="https://www.weather.gov">local National Weather Service office</a> and your county emergency managers. In an emergency call 911.</p>
+  <p>Data: NOAA National Hurricane Center via NOAA tropical map services; National Weather Service API; FEMA National Flood Hazard Layer; USGS 3D Elevation Program; NOAA HURDAT2 (1851-2025); geocoding by OpenStreetMap Nominatim. Map tiles &copy; Esri, HERE, Garmin, OpenStreetMap contributors and the GIS user community (OpenStreetMap tiles as backup). Storm Guide runs on Anthropic's Claude.</p>
+</footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
@@ -329,15 +426,28 @@ function renderLive(){
     ol.innerHTML = '<h2>Chance of new storms</h2>' + (items.length ? '<ul class="tight">' + items.map(f => { const p = f.properties; return `<li>${esc(p.basin || "")} area: <b>${esc(p.prob2day || "?")}</b> chance in 2 days, <b>${esc(p.prob7day || "?")}</b> in 7 days (${esc(p.risk7day || "")} risk)</li>`; }).join("") + "</ul>"
       : '<p style="margin-top:6px">No areas are being watched. NHC does not expect any new tropical storms to form in the next 7 days.</p>') + '<p class="muted small" style="margin-top:6px">Source: <a href="https://www.nhc.noaa.gov/gtwo.php">NHC 7-day Tropical Weather Outlook</a></p>';
   }
-  $("lastcheck").textContent = "Live data last checked " + new Date().toLocaleString([], {weekday:"short", hour:"numeric", minute:"2-digit"}) + ". Refresh the page for the latest.";
-  drawLive();
+  $("lastcheck").textContent = "Live from NOAA, checked " + new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}) + ". Updates every 5 minutes.";
+  drawLive(); renderHero();
+}
+function renderHero(){
+  const t = $("hero-title"), f = $("hero-flags"), sub = $("hero-sub");
+  if (!LIVE.ok) { t.textContent = "Live storm data is unavailable"; f.innerHTML = ""; sub.innerHTML = 'Check <a href="https://www.nhc.noaa.gov">hurricanes.gov</a> for the latest.'; return; }
+  const infos = LIVE.storms.map(stormInfo).sort((a, b) => b.kt - a.kt);
+  let flags = 0;
+  if (!infos.length) t.textContent = "No active storms in the Atlantic";
+  else { const i = infos[0]; flags = i.ss >= 1 ? 2 : 1; t.textContent = i.name + (i.ss ? " is a Category " + i.ss : " is active") + (infos.length > 1 ? ", plus " + (infos.length - 1) + " more" : ""); }
+  f.innerHTML = flags ? '<span class="flag"></span>'.repeat(flags) : '<span class="calm"></span>';
+  f.title = flags === 2 ? "Two red flags: hurricane" : flags === 1 ? "One red flag: tropical storm" : "No active storms";
+  const areas = LIVE.outlookOK ? Math.max(LIVE.outlook.areas.length, LIVE.outlook.pts.length) : null;
+  const out = areas === null ? "" : areas ? "NHC is watching " + areas + " area" + (areas > 1 ? "s" : "") + " for possible development." : "NHC expects no new storms in the next 7 days.";
+  sub.textContent = (infos.length ? infos[0].mph + " mph winds" + (infos[0].dir ? ", moving " + infos[0].dir + " at " + infos[0].spd + " mph. " : ". ") : "") + out;
 }
 let LAST_FIT = null;
 function drawLive(){
   if (!map) return;
   liveLayer.clearLayers(); const bounds = [];
   for (const s of LIVE.storms) {
-    if (s.cone && s.cone.features) L.geoJSON(s.cone, {style: {color: "#c8471b", weight: 1, fillColor: "#c8471b", fillOpacity: 0.14}, interactive: false}).addTo(liveLayer);
+    if (s.cone && s.cone.features) L.geoJSON(s.cone, {style: {color: "#e8890c", weight: 1.5, fillColor: "#f2a541", fillOpacity: 0.2}, interactive: false}).addTo(liveLayer);
     if (s.past && s.past.features) L.geoJSON(s.past, {style: {color: "#7a7f87", weight: 2.5}, interactive: false}).addTo(liveLayer);
     if (s.trk && s.trk.features) L.geoJSON(s.trk, {style: {color: dark() ? "#ebe8e1" : "#1d2128", weight: 2, dashArray: "6 5"}, interactive: false}).addTo(liveLayer);
     if (s.ww && s.ww.features) L.geoJSON(s.ww, {style: f => ({color: WWCOL[f.properties.tcww] || "#888", weight: 6, opacity: .9}), onEachFeature: (f, l) => l.bindTooltip(WWNAME[f.properties.tcww] || f.properties.tcww)}).addTo(liveLayer);
@@ -500,6 +610,7 @@ async function runReport(loc, typed, silent){
     if (ch.length) CHANGE_NOTE = "Changed at " + now + ": " + ch.join(", ") + ".";
   }
   PREV = sig;
+  try { updateCtx(); } catch (e) {}
   try { if (!FOLLOWUPS.length) refreshSugg(); } catch (e) {}
   $("rep-time").innerHTML = `Updated ${esc(now)}. Refreshes automatically every 5 minutes.` + (CHANGE_NOTE ? ` <b style="color:var(--act)">${esc(CHANGE_NOTE)}</b>` : "");
   $("todo").innerHTML = urgent ? `<ul class="tight"><li><b>If officials order an evacuation for your zone, leave.</b> Storm surge causes most hurricane deaths.</li><li>If you are staying, shelter in a small interior room away from windows, on the lowest floor that will not flood.</li><li>Do not drive once tropical-storm-force winds arrive, and never drive or walk through floodwater.</li><li>Run generators outdoors only, at least 20 feet from doors and windows. Never in a garage.</li><li>Emergencies: call 911. Shelters and help: dial 211 or the <a href="https://www.redcross.org/get-help/disaster-relief-and-recovery-services/find-an-open-shelter.html">Red Cross shelter finder</a>.</li></ul>`
@@ -522,8 +633,11 @@ try { const sp = JSON.parse(localStorage.getItem("fst_profile") || "null");
   if (sp) { const l = document.querySelector(`input[name="lvl"][value="${sp.level || ""}"]`); if (l) l.checked = true;
     const g = document.querySelector(`input[name="lang"][value="${sp.lang === "es" ? "es" : "en"}"]`); if (g) g.checked = true;
     (sp.needs || []).forEach(n => { const c = document.getElementById("need-" + n); if (c) c.checked = true; });
-    if (sp.level || (sp.needs || []).length || sp.lang === "es") $("about").open = true; } } catch (e) {}
-$("about").addEventListener("change", () => { try { localStorage.setItem("fst_profile", JSON.stringify(profile())); } catch (e) {} if (!FOLLOWUPS.length) refreshSugg(); });
+  } } catch (e) {}
+function updateAboutSum(){ const t = profileText(profile()); $("about-sum").textContent = t ? "(" + t + ")" : ""; }
+$("about").addEventListener("toggle", () => { $("aboutpanel").hidden = !$("about").open; });
+updateAboutSum();
+$("aboutpanel").addEventListener("change", () => { updateAboutSum(); try { localStorage.setItem("fst_profile", JSON.stringify(profile())); } catch (e) {} if (!FOLLOWUPS.length) refreshSugg(); });
 function bubble(role, text){ const d = document.createElement("div"); d.className = "msg " + role; d.textContent = text; log.appendChild(d); log.scrollTop = log.scrollHeight; return d; }
 function sendFeedback(rating, reason, q, a, basis, pt){
   return fetch("api/feedback", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({rating, reason, question: q, answer: a, basis, profile: pt})});
@@ -548,7 +662,7 @@ function metaRow(q, a, basis, pt){
 async function ask(text){
   text = text.trim(); if (!text || chat.busy) return;
   bubble("u", text); qbox.value = ""; chat.turns.push({role: "user", content: text});
-  const b = bubble("a", "Thinking..."); chat.busy = true; send.disabled = true; note.textContent = "";
+  const b = bubble("a", ""); b.classList.add("typing"); b.innerHTML = "<i></i><i></i><i></i>"; b.setAttribute("aria-label", "Storm Guide is typing"); chat.busy = true; send.disabled = true; note.textContent = "";
   const p = profile();
   try {
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 45000);
@@ -557,7 +671,7 @@ async function ask(text){
     clearTimeout(t);
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.answer) throw new Error(j.error || "The assistant could not answer right now. Try again in a minute.");
-    b.textContent = j.answer; chat.turns.push({role: "assistant", content: j.answer});
+    b.classList.remove("typing"); b.removeAttribute("aria-label"); b.textContent = j.answer; chat.turns.push({role: "assistant", content: j.answer});
     metaRow(text, j.answer, j.basis, profileText(p));
     FOLLOWUPS = Array.isArray(j.followups) ? j.followups.filter(q => typeof q === "string").slice(0, 3) : []; refreshSugg();
   } catch (e) {
@@ -592,7 +706,14 @@ function refreshSugg(){
 refreshSugg();
 send.addEventListener("click", () => ask(qbox.value));
 qbox.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(qbox.value); } });
-getJSON("api/chat", 8000).then(j => { if (j && j.enabled) $("chat").hidden = false; }).catch(() => {});
+getJSON("api/chat", 8000).then(j => { if (j && j.enabled) { $("chat").hidden = false; $("chatoff").hidden = true; } }).catch(() => {});
+function updateCtx(){
+  const c = $("ctxchip");
+  if (REPORT_CTX) c.innerHTML = "Using your risk report for <b>" + esc($("rep-place").textContent) + "</b>";
+  else c.innerHTML = 'For answers about your home, <button class="linkbtn" type="button" data-tab="risk">check your address</button> first.';
+}
+updateCtx();
+qbox.addEventListener("input", () => { qbox.style.height = "auto"; qbox.style.height = Math.min(qbox.scrollHeight, 160) + "px"; });
 
 // ---------------------------------------------------------------- search wiring
 const addr = $("addr"), go = $("go"), geo = $("geo"), msg = $("searchmsg"), forget = $("forget");
@@ -603,7 +724,7 @@ async function search(){
     const loc = await geocode(text);
     if (!loc) { msg.textContent = "Could not find that address. Try adding the city and state."; return; }
     msg.textContent = ""; store.set(text); forget.hidden = false;
-    CURRENT = {loc, typed: text}; await runReport(loc, text); $("report").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start"});
+    CURRENT = {loc, typed: text}; showTab("risk"); await runReport(loc, text); $("report").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start"});
   } catch (e) { msg.textContent = "Could not reach the address lookup service. Check your connection and try again."; }
   finally { go.disabled = false; }
 }
@@ -618,7 +739,18 @@ geo.addEventListener("click", () => {
 forget.addEventListener("click", () => { store.del(); addr.value = ""; forget.hidden = true; msg.textContent = "Your saved address was removed from this device."; });
 
 // ---------------------------------------------------------------- start
+const TABS = ["now", "risk", "ask"];
+function showTab(name, push){
+  if (!TABS.includes(name)) name = "now";
+  TABS.forEach(t => { $("tab-" + t).hidden = t !== name; $("t-" + t).setAttribute("aria-selected", t === name ? "true" : "false"); });
+  if (push !== false) { try { history.replaceState(null, "", "#" + name); } catch (e) {} }
+  if (name === "now" && map) setTimeout(() => { map.invalidateSize(); LAST_FIT = null; drawLive(); }, 30);
+  if (name === "ask" && !$("chat").hidden) setTimeout(() => { log.scrollTop = log.scrollHeight; }, 30);
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (b) { e.preventDefault(); showTab(b.dataset.tab); window.scrollTo(0, 0); } });
+window.addEventListener("hashchange", () => showTab(location.hash.slice(1), false));
 const saved = store.get();
+showTab(location.hash.slice(1) || (saved ? "risk" : "now"), false);
 async function loadSeason(){
   const body = $("seasonbody"), foot = $("seasonfoot"), time = new Date().toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
   try {
