@@ -103,3 +103,7 @@ Do not publish our model's track for a live storm as a forecast. Show it only ne
 To turn it on: in Vercel, open the project's Settings, Environment Variables, add `ANTHROPIC_API_KEY` (Production), save, then redeploy the latest deployment. The chat box stays hidden until the key exists.
 
 Safeguards: requests are accepted only from this site, each visitor is limited to 20 messages an hour (best effort, per server instance), answers are capped at 700 tokens, and only the last 10 messages are sent. Set a monthly spending limit in the Anthropic Console as the real backstop. Optional settings: `ANTHROPIC_MODEL` (default `claude-haiku-5-5`) and `ALLOWED_ORIGINS` (comma-separated, for a custom domain).
+
+### Assistant design (final project)
+
+Role: Personal Hurricane Risk Guide and Resource Navigator. The full instructions are in `rules()` in `api/chat.js`. The chat panel's optional "About you" settings (experience level, household needs, English or Spanish) are saved only in the visitor's browser and sent with each question. Every answer shows a "Based on" line (which NHC data, and whether the risk report or profile was used) and Helpful / Report a problem buttons. Ratings go to `api/feedback.js`, which writes one `FEEDBACK` line per rating to the Vercel runtime logs for the team to review.

@@ -101,6 +101,16 @@ ul.tight{margin:4px 0 0;padding-left:18px;font-size:14px}
 .msg.u{align-self:flex-end;background:var(--bg);border:1px solid var(--line);border-radius:10px 10px 2px 10px;padding:8px 12px}
 .msg.a{align-self:flex-start;border-left:3px solid var(--accent);padding:2px 0 2px 12px}
 .msg.sys{color:var(--muted);font-size:13px}
+.about{margin-top:10px;border:1px solid var(--line);border-radius:6px;padding:8px 12px}
+.about summary{cursor:pointer;font-weight:600;font-size:14px}
+.aboutgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:10px}
+.aboutgrid fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;min-width:0}
+.aboutgrid legend{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;padding:0}
+.aboutgrid label{font-size:14px;display:flex;gap:6px;align-items:flex-start}
+.meta{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:12px;color:var(--muted);margin:-4px 0 0 15px}
+.fb{background:none;border:1px solid var(--line);border-radius:999px;padding:2px 10px;font:inherit;font-size:12px;color:var(--fg);cursor:pointer}
+.fb:disabled{opacity:.55;cursor:default}
+.meta select{font:inherit;font-size:12px;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:2px 4px}
 .ask{display:flex;gap:8px;margin-top:10px}
 .ask textarea{flex:1;min-width:0;resize:vertical;min-height:46px;font:inherit;font-size:16px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
 .sugg{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
@@ -150,12 +160,35 @@ ul.tight{margin:4px 0 0;padding-left:18px;font-size:14px}
 <section id="chat" hidden aria-labelledby="chat-h">
   <div class="panel">
     <h2 id="chat-h">Ask the hurricane assistant</h2>
-    <p class="muted small" style="margin-top:4px">Answers use the latest National Hurricane Center advisory and, if you checked an address above, your risk report. It is an AI student project and can be wrong. Follow local officials. In an emergency call 911.</p>
-    <div class="chatlog" id="chatlog" aria-live="polite"><div class="msg a">Hi. Ask me what the current storm means for you, what the wind or flooding could do where you live, how to prepare, or where to find shelters and supplies.</div></div>
+    <p class="muted small" style="margin-top:4px">It explains what official forecasts and warnings mean for you and where to turn next. It is an AI student project, not an official source: it can be wrong, and it cannot make decisions for you. Follow local officials. In an emergency call 911.</p>
+    <details class="about" id="about">
+      <summary>About you (optional): helps the assistant fit its answers to your situation</summary>
+      <div class="aboutgrid">
+        <fieldset><legend>Experience</legend>
+          <label><input type="radio" name="lvl" id="lvl-any" value="" checked> Not sure</label>
+          <label><input type="radio" name="lvl" id="lvl-beginner" value="beginner"> New to hurricanes or to Florida</label>
+          <label><input type="radio" name="lvl" id="lvl-expert" value="expert"> I know weather terms</label>
+        </fieldset>
+        <fieldset><legend>Your household</legend>
+          <label><input type="checkbox" id="need-pets" value="pets"> Pets</label>
+          <label><input type="checkbox" id="need-medical" value="medical"> Medical needs or disability</label>
+          <label><input type="checkbox" id="need-mobilehome" value="mobilehome"> Mobile or manufactured home</label>
+          <label><input type="checkbox" id="need-nocar" value="nocar"> No car</label>
+          <label><input type="checkbox" id="need-renter" value="renter"> I rent</label>
+          <label><input type="checkbox" id="need-caregiver" value="caregiver"> I care for an older adult or child</label>
+        </fieldset>
+        <fieldset><legend>Language</legend>
+          <label><input type="radio" name="lang" id="lang-en" value="en" checked> English</label>
+          <label><input type="radio" name="lang" id="lang-es" value="es"> Espa&ntilde;ol</label>
+        </fieldset>
+      </div>
+      <p class="muted small" style="margin-top:8px">Saved only on this device and sent with your questions. Nothing here identifies you.</p>
+    </details>
+    <div class="chatlog" id="chatlog" aria-live="polite"><div class="msg a">Hi. I can help you understand what the forecast and any warnings mean for you, sort out claims you've heard, and find the right official help. Where are you, and what would you like to know?</div></div>
     <div class="sugg" id="sugg"></div>
     <div class="ask">
       <label for="q" style="position:absolute;left:-9999px">Your question</label>
-      <textarea id="q" rows="2" maxlength="1500" placeholder="Example: Should I be worried about flooding at my house?"></textarea>
+      <textarea id="q" rows="2" maxlength="1500" placeholder="Example: I live in a mobile home near Tampa. What should I plan for?"></textarea>
       <button class="btn" id="send" type="button">Send</button>
     </div>
     <p class="msg sys" id="chatnote" style="margin-top:6px"></p>
@@ -476,25 +509,61 @@ async function runReport(loc, typed, silent){
 let REPORT_CTX = "";
 const chat = {turns: [], busy: false};
 const log = $("chatlog"), qbox = $("q"), send = $("send"), note = $("chatnote");
+const NEED_LABELS = {pets: "pets", medical: "medical needs", mobilehome: "mobile home", nocar: "no car", renter: "renter", caregiver: "caregiver"};
+function profile(){
+  const lvl = (document.querySelector('input[name="lvl"]:checked') || {}).value || "";
+  const lang = (document.querySelector('input[name="lang"]:checked') || {}).value || "en";
+  const needs = [...document.querySelectorAll('.aboutgrid input[type="checkbox"]:checked')].map(c => c.value);
+  return {level: lvl, needs, lang};
+}
+const profileText = p => [p.level, ...p.needs.map(n => NEED_LABELS[n]), p.lang === "es" ? "spanish" : ""].filter(Boolean).join(", ");
+try { const sp = JSON.parse(localStorage.getItem("fst_profile") || "null");
+  if (sp) { const l = document.querySelector(`input[name="lvl"][value="${sp.level || ""}"]`); if (l) l.checked = true;
+    const g = document.querySelector(`input[name="lang"][value="${sp.lang === "es" ? "es" : "en"}"]`); if (g) g.checked = true;
+    (sp.needs || []).forEach(n => { const c = document.getElementById("need-" + n); if (c) c.checked = true; });
+    if (sp.level || (sp.needs || []).length || sp.lang === "es") $("about").open = true; } } catch (e) {}
+$("about").addEventListener("change", () => { try { localStorage.setItem("fst_profile", JSON.stringify(profile())); } catch (e) {} });
 function bubble(role, text){ const d = document.createElement("div"); d.className = "msg " + role; d.textContent = text; log.appendChild(d); log.scrollTop = log.scrollHeight; return d; }
+function sendFeedback(rating, reason, q, a, basis, pt){
+  return fetch("api/feedback", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({rating, reason, question: q, answer: a, basis, profile: pt})});
+}
+function metaRow(q, a, basis, pt){
+  const m = document.createElement("div"); m.className = "meta";
+  const src = document.createElement("span"); src.textContent = "Based on: " + (basis || "the assistant's general knowledge"); m.appendChild(src);
+  const up = document.createElement("button"); up.type = "button"; up.className = "fb"; up.textContent = "Helpful";
+  const bad = document.createElement("button"); bad.type = "button"; bad.className = "fb"; bad.textContent = "Report a problem";
+  const done = msg => { [...m.querySelectorAll("button,select")].forEach(x => x.remove()); const t = document.createElement("span"); t.textContent = msg; m.appendChild(t); };
+  up.onclick = () => { sendFeedback("helpful", "", q, a, basis, pt).catch(() => {}); done("Thanks for the feedback."); };
+  bad.onclick = () => {
+    up.remove(); bad.remove();
+    const sel = document.createElement("select"); sel.id = "fb-" + Date.now(); sel.setAttribute("aria-label", "What was wrong?");
+    ["Wrong or outdated information", "Unsafe or bad advice", "Too confident", "Did not answer my question", "Other"].forEach(o => sel.add(new Option(o, o)));
+    const go = document.createElement("button"); go.type = "button"; go.className = "fb"; go.textContent = "Send report";
+    go.onclick = () => { go.disabled = true; sendFeedback("problem", sel.value, q, a, basis, pt).then(r => done(r.ok ? "Reported. Our team reviews reported answers." : "Could not send the report.")).catch(() => done("Could not send the report.")); };
+    m.appendChild(sel); m.appendChild(go); sel.focus();
+  };
+  m.appendChild(up); m.appendChild(bad); log.appendChild(m); return m;
+}
 async function ask(text){
   text = text.trim(); if (!text || chat.busy) return;
   bubble("u", text); qbox.value = ""; chat.turns.push({role: "user", content: text});
   const b = bubble("a", "Thinking..."); chat.busy = true; send.disabled = true; note.textContent = "";
+  const p = profile();
   try {
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 45000);
     const r = await fetch("api/chat", {method: "POST", headers: {"Content-Type": "application/json"}, signal: ctl.signal,
-      body: JSON.stringify({messages: chat.turns.slice(-10), context: REPORT_CTX})});
+      body: JSON.stringify({messages: chat.turns.slice(-10), context: REPORT_CTX, profile: p})});
     clearTimeout(t);
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.answer) throw new Error(j.error || "The assistant could not answer right now. Try again in a minute.");
     b.textContent = j.answer; chat.turns.push({role: "assistant", content: j.answer});
+    metaRow(text, j.answer, j.basis, profileText(p));
   } catch (e) {
     chat.turns.pop(); b.remove();
     note.textContent = e.name === "AbortError" ? "That took too long. Try again." : e.message;
   } finally { chat.busy = false; send.disabled = false; log.scrollTop = log.scrollHeight; }
 }
-["What should I do right now?", "What could the wind do to my house?", "Am I at risk of flooding?", "What supplies do I need?"].forEach(s => {
+["Should I evacuate?", "I'm outside the cone, so I'm safe, right?", "Why should I trust the NHC forecast?", "What supplies do I need?"].forEach(s => {
   const c = document.createElement("button"); c.type = "button"; c.className = "chip"; c.textContent = s; c.onclick = () => ask(s); $("sugg").appendChild(c); });
 send.addEventListener("click", () => ask(qbox.value));
 qbox.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(qbox.value); } });
