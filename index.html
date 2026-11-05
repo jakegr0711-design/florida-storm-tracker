@@ -500,6 +500,7 @@ async function runReport(loc, typed, silent){
     if (ch.length) CHANGE_NOTE = "Changed at " + now + ": " + ch.join(", ") + ".";
   }
   PREV = sig;
+  try { if (!FOLLOWUPS.length) refreshSugg(); } catch (e) {}
   $("rep-time").innerHTML = `Updated ${esc(now)}. Refreshes automatically every 5 minutes.` + (CHANGE_NOTE ? ` <b style="color:var(--act)">${esc(CHANGE_NOTE)}</b>` : "");
   $("todo").innerHTML = urgent ? `<ul class="tight"><li><b>If officials order an evacuation for your zone, leave.</b> Storm surge causes most hurricane deaths.</li><li>If you are staying, shelter in a small interior room away from windows, on the lowest floor that will not flood.</li><li>Do not drive once tropical-storm-force winds arrive, and never drive or walk through floodwater.</li><li>Run generators outdoors only, at least 20 feet from doors and windows. Never in a garage.</li><li>Emergencies: call 911. Shelters and help: dial 211 or the <a href="https://www.redcross.org/get-help/disaster-relief-and-recovery-services/find-an-open-shelter.html">Red Cross shelter finder</a>.</li></ul>`
     : `<ul class="tight"><li>Know your evacuation zone and where you would go.</li><li>Keep a kit: 1 gallon of water per person per day for at least 3 days, food, medicine, flashlights, batteries, phone power banks, cash, documents in a waterproof bag. <a href="https://www.ready.gov/kit">Full checklist</a></li><li>Check your flood insurance. Most home policies do not cover flooding, and new flood policies usually take 30 days to start.</li><li>Have two ways to get warnings, such as phone alerts and a weather radio.</li></ul>`;
@@ -522,7 +523,7 @@ try { const sp = JSON.parse(localStorage.getItem("fst_profile") || "null");
     const g = document.querySelector(`input[name="lang"][value="${sp.lang === "es" ? "es" : "en"}"]`); if (g) g.checked = true;
     (sp.needs || []).forEach(n => { const c = document.getElementById("need-" + n); if (c) c.checked = true; });
     if (sp.level || (sp.needs || []).length || sp.lang === "es") $("about").open = true; } } catch (e) {}
-$("about").addEventListener("change", () => { try { localStorage.setItem("fst_profile", JSON.stringify(profile())); } catch (e) {} });
+$("about").addEventListener("change", () => { try { localStorage.setItem("fst_profile", JSON.stringify(profile())); } catch (e) {} if (!FOLLOWUPS.length) refreshSugg(); });
 function bubble(role, text){ const d = document.createElement("div"); d.className = "msg " + role; d.textContent = text; log.appendChild(d); log.scrollTop = log.scrollHeight; return d; }
 function sendFeedback(rating, reason, q, a, basis, pt){
   return fetch("api/feedback", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({rating, reason, question: q, answer: a, basis, profile: pt})});
@@ -558,13 +559,37 @@ async function ask(text){
     if (!r.ok || !j.answer) throw new Error(j.error || "The assistant could not answer right now. Try again in a minute.");
     b.textContent = j.answer; chat.turns.push({role: "assistant", content: j.answer});
     metaRow(text, j.answer, j.basis, profileText(p));
+    FOLLOWUPS = Array.isArray(j.followups) ? j.followups.filter(q => typeof q === "string").slice(0, 3) : []; refreshSugg();
   } catch (e) {
     chat.turns.pop(); b.remove();
     note.textContent = e.name === "AbortError" ? "That took too long. Try again." : e.message;
   } finally { chat.busy = false; send.disabled = false; log.scrollTop = log.scrollHeight; }
 }
-["Should I evacuate?", "I'm outside the cone, so I'm safe, right?", "Why should I trust the NHC forecast?", "What supplies do I need?"].forEach(s => {
-  const c = document.createElement("button"); c.type = "button"; c.className = "chip"; c.textContent = s; c.onclick = () => ask(s); $("sugg").appendChild(c); });
+// Suggested questions: the assistant's own follow-ups after each answer; before that, questions that fit the visitor's situation.
+let FOLLOWUPS = [];
+const WARN_ORDER = ["Hurricane Warning", "Storm Surge Warning", "Extreme Wind Warning", "Tornado Warning", "Flash Flood Warning", "Tropical Storm Warning", "Hurricane Watch", "Storm Surge Watch", "Tropical Storm Watch", "Flood Watch"];
+function stateSugg(){
+  const es = profile().lang === "es";
+  const storm = LIVE.storms.length ? stormInfo(LIVE.storms[0]).name.replace(/^(Hurricane|Tropical Storm|Tropical Depression|Major Hurricane|Post-Tropical Cyclone|Potential Tropical Cyclone)\s+/i, "") : null;
+  const alerts = PREV && PREV.alerts ? PREV.alerts : [];
+  const top = WARN_ORDER.find(w => alerts.includes(w));
+  const report = !!REPORT_CTX;
+  if (top) return es ? [`¿Qué significa el aviso "${top}" para mí?`, "¿Debo evacuar o quedarme?", "¿Qué hago si me quedo en casa?"]
+    : [`What does the ${top} mean for me?`, "Should I evacuate or stay?", "What do I do if I'm staying home?"];
+  if (storm && report) return es ? [`¿${storm} es una amenaza para mí?`, "¿Cuál es mi mayor riesgo ahora?", "¿Qué debo hacer en las próximas 24 horas?"]
+    : [`Is ${storm} a threat to me?`, "What's my biggest risk right now?", "What should I do in the next 24 hours?"];
+  if (storm) return es ? [`¿${storm} es una amenaza para Florida?`, "Estoy fuera del cono, ¿estoy a salvo?", "¿Debo evacuar?"]
+    : [`Is ${storm} a threat to Florida?`, "I'm outside the cone, so I'm safe, right?", "Should I evacuate?"];
+  if (report) return es ? ["¿Estoy a salvo ahora?", "¿Qué significa mi zona de inundación?", "¿Qué debo hacer antes de la próxima temporada?"]
+    : ["Am I safe right now?", "What does my flood zone mean for me?", "What should I do before next season?"];
+  return es ? ["¿Estoy a salvo ahora?", "¿Cómo encuentro mi zona de evacuación?", "¿Por qué confiar en el pronóstico del NHC?", "¿Qué suministros necesito?"]
+    : ["Am I safe right now?", "How do I find my evacuation zone?", "Why should I trust NHC forecasts?", "What supplies do I need?"];
+}
+function refreshSugg(){
+  const box = $("sugg"); box.innerHTML = "";
+  (FOLLOWUPS.length ? FOLLOWUPS : stateSugg()).forEach(q => { const c = document.createElement("button"); c.type = "button"; c.className = "chip"; c.textContent = q; c.onclick = () => ask(q); box.appendChild(c); });
+}
+refreshSugg();
 send.addEventListener("click", () => ask(qbox.value));
 qbox.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(qbox.value); } });
 getJSON("api/chat", 8000).then(j => { if (j && j.enabled) $("chat").hidden = false; }).catch(() => {});
@@ -614,6 +639,7 @@ async function refreshAll(){
   if (refreshing) return; refreshing = true; lastRefresh = Date.now();
   try {
     await loadLive().catch(() => { LIVE.ok = false; renderLive(); });
+    try { if (!FOLLOWUPS.length) refreshSugg(); } catch (e) {}
     if (CURRENT) await runReport(CURRENT.loc, CURRENT.typed, true).catch(() => {});
   } finally { refreshing = false; }
 }
