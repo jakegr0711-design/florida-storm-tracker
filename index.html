@@ -193,7 +193,7 @@ section.tabpanel{padding-block:0 40px}
 </style>
 </head>
 <body>
-<div class="exercise" id="exercise" hidden role="note"><div class="wrap"><span><b>EXERCISE</b> Hurricane Gator is a made-up storm for a class demonstration. Nothing about it is real.</span><a href="./">Switch to real data</a></div></div>
+<div class="exercise" id="exercise" hidden role="note"><div class="wrap"><span><b>EXERCISE</b> Hurricane Neegy is a made-up storm for a class demonstration. Nothing about it is real.</span><a href="./">Switch to real data</a></div></div>
 <header class="bar">
   <div class="wrap">
     <a class="brand" href="index.html#now"><span class="flag" aria-hidden="true"></span>Florida Storm Tracker</a>
@@ -381,7 +381,7 @@ const WWNAME = {HWR:"Hurricane warning", HWA:"Hurricane watch", TWR:"Tropical st
 
 // ---------------------------------------------------------------- live tropics
 const LIVE = {storms: [], outlook: [], ok: false};
-// ---------------------------------------------------------------- EXERCISE MODE (?demo=1): fictional Hurricane Gator
+// ---------------------------------------------------------------- EXERCISE MODE (?demo=1): fictional Hurricane Neegy
 // A made-up storm for classroom demonstrations. Never shown unless the page is opened with ?demo=1,
 // and always labeled as an exercise on screen and in the assistant's instructions.
 const DEMO = new URLSearchParams(location.search).has("demo");
@@ -401,7 +401,7 @@ const demoWhen = (tau, opts) => new Date(DEMO_T0 + tau * 36e5).toLocaleString("e
 function demoStorm(){
   const adv = demoWhen(0, {month: "short", day: "numeric", year: "numeric"}) + " ET";
   const pts = DEMO_PTS.map(p => ({type: "Feature", geometry: {type: "Point", coordinates: [p.lon, p.lat]}, properties: {
-    stormname: "Hurricane Gator", tcdvlp: p.dv, ssnum: p.ss, maxwind: p.kt, gust: p.gust, mslp: p.mslp || 9999, tcdir: p.dir ?? 9999, tcspd: p.spd ?? 9999,
+    stormname: "Hurricane Neegy", tcdvlp: p.dv, ssnum: p.ss, maxwind: p.kt, gust: p.gust, mslp: p.mslp || 9999, tcdir: p.dir ?? 9999, tcspd: p.spd ?? 9999,
     tau: p.tau, datelbl: demoWhen(p.tau), advdate: adv, advisnum: "14", stormtype: p.ss >= 3 ? "MH" : p.ss ? "HU" : "TS"}}));
   // forecast cone: offsets either side of the track, widening with lead time (nautical miles)
   const R = {0: 12, 12: 26, 24: 41, 30: 48, 36: 55, 48: 70, 72: 102}, left = [], right = [];
@@ -414,8 +414,8 @@ function demoStorm(){
   const ring = [...left, ...right.reverse()]; ring.push(ring[0]);
   const line = (coords, props) => ({type: "Feature", geometry: {type: "LineString", coordinates: coords}, properties: props || {}});
   return {bin: "AT1", id: 6, pts,
-    trk: {type: "FeatureCollection", features: [line(DEMO_PTS.map(p => [p.lon, p.lat]), {stormname: "Gator"})]},
-    cone: {type: "FeatureCollection", features: [{type: "Feature", geometry: {type: "Polygon", coordinates: [ring]}, properties: {stormname: "Gator"}}]},
+    trk: {type: "FeatureCollection", features: [line(DEMO_PTS.map(p => [p.lon, p.lat]), {stormname: "Neegy"})]},
+    cone: {type: "FeatureCollection", features: [{type: "Feature", geometry: {type: "Polygon", coordinates: [ring]}, properties: {stormname: "Neegy"}}]},
     past: {type: "FeatureCollection", features: [line([[-82.5, 16.5], [-83.0, 18.0], [-83.6, 19.8], [-84.0, 21.6], [-84.3, 23.4], [-84.3, 25.0], [-84.2, 26.3]])]},
     ww: {type: "FeatureCollection", features: [
       line([[-82.70, 27.50], [-82.80, 28.00], [-82.75, 28.50], [-82.66, 28.90], [-83.03, 29.14], [-83.40, 29.65], [-83.60, 29.95], [-84.10, 30.10]], {tcww: "HWR"}),
@@ -432,7 +432,7 @@ function demoCenterAt(tauH){
 function demoWindAt(lat, lon, tauH){ const c = demoCenterAt(tauH); if (!c) return 0; const r = miles(lat, lon, c.lat, c.lon), rmw = 25; return r <= rmw ? c.kt * Math.max(r / rmw, 0.35) : c.kt * Math.pow(rmw / r, 0.65); }
 function demoPeakAt(lat, lon){ let best = {kt: 0, tau: 0}; for (let t = 0; t <= 72; t += 1) { const v = demoWindAt(lat, lon, t); if (v > best.kt) best = {kt: v, tau: t}; } return best; }
 function demoAlerts(loc, elev){
-  const near = stormRelation(loc.lat, loc.lon).find(r => /Gator/.test(r.info.name)); if (!near) return [];
+  const near = stormRelation(loc.lat, loc.lon).find(r => /Neegy/.test(r.info.name)); if (!near) return [];
   const peak = demoPeakAt(loc.lat, loc.lon), until = new Date(DEMO_T0 + 40 * 36e5).toISOString(), out = [];
   const A = (event, severity, instruction) => out.push({properties: {event, severity, instruction, senderName: "National Weather Service (exercise)", expires: until, sent: new Date(DEMO_T0).toISOString()}});
   if (elev !== null && elev < 12 && near.closest <= 130) A("Storm Surge Warning", "Extreme", "Life-threatening storm surge of 8 to 12 feet above ground is possible. Leave the evacuation zone when officials tell you to.");
@@ -461,10 +461,10 @@ function demoForecast(loc){
 function demoAdvisoryText(){
   const p0 = DEMO_PTS[0];
   return `EXERCISE ADVISORY (FICTIONAL STORM FOR A CLASSROOM DEMONSTRATION)
-Hurricane Gator Advisory Number 14, issued ${demoWhen(0, {month: "short", day: "numeric"})} ET.
+Hurricane Neegy Advisory Number 14, issued ${demoWhen(0, {month: "short", day: "numeric"})} ET.
 LOCATION: ${p0.lat}N ${Math.abs(p0.lon)}W, about 150 miles SW of Tampa and 190 miles SSW of Cedar Key. MAXIMUM SUSTAINED WINDS: 120 mph (Category 3). MOVEMENT: N at 13 mph, turning NNE then NE. PRESSURE: 958 mb.
 Hurricane-force winds extend up to 40 miles from the center; tropical-storm-force winds extend up to 125 miles.
-FORECAST: Gator strengthens slightly over warm Gulf water tonight, then makes landfall near Cedar Key around ${demoWhen(23)} as a Category 3 hurricane. The center then moves NE across north-central Florida, passing just west of Gainesville around ${demoWhen(30)} as a Category 2 hurricane (100 mph), and reaches the Atlantic near Jacksonville around ${demoWhen(36)} as a Category 1. Forecast positions: +12h 27.8N 83.9W 125 mph; +24h 29.1N 83.1W 115 mph; +30h 29.6N 82.4W 100 mph; +36h 30.2N 81.6W 80 mph; +48h 31.6N 79.1W 70 mph.
+FORECAST: Neegy strengthens slightly over warm Gulf water tonight, then makes landfall near Cedar Key around ${demoWhen(23)} as a Category 3 hurricane. The center then moves NE across north-central Florida, passing just west of Gainesville around ${demoWhen(30)} as a Category 2 hurricane (100 mph), and reaches the Atlantic near Jacksonville around ${demoWhen(36)} as a Category 1. Forecast positions: +12h 27.8N 83.9W 125 mph; +24h 29.1N 83.1W 115 mph; +30h 29.6N 82.4W 100 mph; +36h 30.2N 81.6W 80 mph; +48h 31.6N 79.1W 70 mph.
 WATCHES AND WARNINGS: Hurricane Warning from Anna Maria Island to the Ochlockonee River, including inland Levy, Gilchrist, Alachua, Marion, Columbia, Union, Bradford and Clay counties. Storm Surge Warning from Anna Maria Island to the Aucilla River. Tropical Storm Warning from Bonita Beach to Anna Maria Island and west of the Ochlockonee River to Indian Pass. Hurricane Watch on the Atlantic coast from Flagler Beach to Altamaha Sound, GA.
 STORM SURGE (peak, feet above ground): Cedar Key to Yankeetown 10-14 ft; Aucilla River to Cedar Key 8-12 ft; Yankeetown to Aripeka 7-10 ft; Aripeka to Anna Maria Island including Tampa Bay 4-7 ft.
 WIND: Hurricane conditions reach the Gulf coast warning area tomorrow afternoon and spread inland across north-central Florida, including Gainesville and Ocala, tomorrow evening into early the next morning. Tropical storm conditions begin along the Gulf coast tomorrow morning and inland by early tomorrow afternoon. Widespread long-lasting power outages and many downed trees are expected inland.
@@ -492,10 +492,10 @@ async function loadLive(){
   renderLive();
 }
 function demoDecorate(){
-  $("exercise").hidden = false; document.title = "EXERCISE: Hurricane Gator | Florida Storm Tracker";
+  $("exercise").hidden = false; document.title = "EXERCISE: Hurricane Neegy | Florida Storm Tracker";
   $("lastcheck").textContent = "Exercise scenario. Times count forward from when this page was opened.";
   $("hero-sub").textContent = "120 mph winds, moving north at 13 mph. Landfall expected near Cedar Key around " + demoWhen(23) + ", with the center passing just west of Gainesville around " + demoWhen(30) + ".";
-  $("outlook").innerHTML = '<h2>Chance of new storms</h2><p>Not part of this exercise. Only Hurricane Gator is simulated.</p>';
+  $("outlook").innerHTML = '<h2>Chance of new storms</h2><p>Not part of this exercise. Only Hurricane Neegy is simulated.</p>';
   document.querySelectorAll("#storms a").forEach(a => { a.removeAttribute("href"); a.textContent = "Exercise: there is no real NHC advisory for this storm."; });
 }
 function stormInfo(s){

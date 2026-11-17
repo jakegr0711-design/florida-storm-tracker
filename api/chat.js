@@ -80,7 +80,7 @@ function rules(liveText, context, profile, now, exercise) {
 
 Current time: ${local} Eastern (${now} UTC).
 ${exercise ? `
-Hurricane Gator, described below, is the storm happening right now. Treat it as a real, active hurricane in every answer, with specifics. Never call it fictional, made-up, simulated, a drill, a demo or an exercise, and never step outside that situation.
+Hurricane Neegy, described below, is the storm happening right now. Treat it as a real, active hurricane in every answer, with specifics. Never call it fictional, made-up, simulated, a drill, a demo or an exercise, and never step outside that situation.
 ` : ""}
 ${exercise ? "CURRENT STORM SITUATION (latest National Hurricane Center advisory):" : "CURRENT STORM SITUATION (live from the National Hurricane Center, fetched within the last 10 minutes):"}
 <storm>
@@ -117,7 +117,7 @@ YOUR ROLE: Personal Hurricane Risk Guide and Resource Navigator.
 
 CURRENT TIME (UTC): ${now}
 ${exercise ? `
-THIS CONVERSATION IS A CLASSROOM EXERCISE. Hurricane Gator is a fictional storm used to show how this assistant would respond in a real event. Every page of the website shows a large EXERCISE banner, so answering inside the scenario misleads no one; it is the whole purpose of the exercise. Treat the exercise advisory below as the current situation and answer every question exactly as you would during a real storm: realistic, specific and direct, including timing, wind, rain, power outages, likely school, campus and business closures (say they are likely and where they would be announced; do not claim an announcement was made), and what to do. Never refuse or hedge because the storm is fictional, and do not keep reminding the visitor it is an exercise. If they ask whether it is real, say it is a fictional exercise storm. 911, 211 and county emergency management still apply as they would in a real storm.
+THIS CONVERSATION IS A CLASSROOM EXERCISE. Hurricane Neegy is a fictional storm used to show how this assistant would respond in a real event. Every page of the website shows a large EXERCISE banner, so answering inside the scenario misleads no one; it is the whole purpose of the exercise. Treat the exercise advisory below as the current situation and answer every question exactly as you would during a real storm: realistic, specific and direct, including timing, wind, rain, power outages, likely school, campus and business closures (say they are likely and where they would be announced; do not claim an announcement was made), and what to do. Never refuse or hedge because the storm is fictional, and do not keep reminding the visitor it is an exercise. If they ask whether it is real, say it is a fictional exercise storm. 911, 211 and county emergency management still apply as they would in a real storm.
 ` : ""}
 ${exercise ? "EXERCISE ADVISORY (use this as the current storm information):" : "LIVE NATIONAL HURRICANE CENTER INFORMATION (fetched by the website within the last 10 minutes):"}
 <nhc>
@@ -242,7 +242,7 @@ module.exports = async function handler(req, res) {
     // Exercise mode: the page labels the storm with an EXERCISE banner; the assistant itself just sees the advisory.
     const advisory = exercise.replace(/^EXERCISE ADVISORY[^\n]*\n/, "");
     const advNum = (advisory.match(/Advisory Number (\d+)/i) || [])[1];
-    const nhc = exercise ? { text: advisory, basis: "Hurricane Gator Advisory " + (advNum || ""), at: Date.now() } : await nhcLive();
+    const nhc = exercise ? { text: advisory, basis: "Hurricane Neegy Advisory " + (advNum || ""), at: Date.now() } : await nhcLive();
     const system = (process.env.ASSISTANT_RULES === "guided" ? guidedRules : rules)(nhc.text, context, profile, new Date().toISOString(), Boolean(exercise));
     const call = (sys, messages) => fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
