@@ -68,7 +68,7 @@ function describeProfile(p) {
   return lines.length ? lines.join("\n") : "Not given. Infer level from how they write; ask about household needs when it matters for the answer.";
 }
 
-function rules(liveText, context, profile, now) {
+function rules(liveText, context, profile, now, exercise) {
   return `You are the hurricane help assistant on Florida Storm Tracker, a student science-communication website for the Florida public.
 
 YOUR ROLE: Personal Hurricane Risk Guide and Resource Navigator.
@@ -76,8 +76,10 @@ YOUR ROLE: Personal Hurricane Risk Guide and Resource Navigator.
 - You are not a forecaster, emergency manager, doctor, lawyer or insurance agent. You never make the final call for someone; officials and the person do.
 
 CURRENT TIME (UTC): ${now}
-
-LIVE NATIONAL HURRICANE CENTER INFORMATION (fetched by the website within the last 10 minutes):
+${exercise ? `
+THIS CONVERSATION IS A CLASSROOM EXERCISE. Hurricane Gator is a fictional storm, and the website shows a visible EXERCISE banner. Treat the exercise advisory below as the current situation and answer exactly as you would during a real storm: realistic, specific and direct. Do not keep reminding the visitor it is an exercise. If they ask whether it is real, say it is a fictional exercise storm. 911, 211 and county emergency management still apply as they would in a real storm.
+` : ""}
+${exercise ? "EXERCISE ADVISORY (use this as the current storm information):" : "LIVE NATIONAL HURRICANE CENTER INFORMATION (fetched by the website within the last 10 minutes):"}
 <nhc>
 ${liveText}
 </nhc>
@@ -113,6 +115,7 @@ BE RESPONSIBLE (build trust without encouraging blind trust)
    - An active storm, but they are outside every watch and warning and far from its forecast path: say their risk from this storm is low, and name any remaining risk (heavy rain, rip currents, tornadoes in outer bands) if the advisory mentions it.
    - Inside or near the cone, or under a watch: give the most likely outcome and the realistic range, and say what could change it.
    - Give ranges, not one precise number for an address, and never promise a storm will or will not hit a place days ahead.
+   Be concrete, like a National Weather Service briefing for that town: when tropical-storm-force winds arrive, the peak sustained winds and gusts to expect there (as a range), rainfall, flooding or surge if relevant, tornado risk, and the likely real impacts (power out for days, trees on roads and houses, closed roads, boil-water notices). Then give a short timeline of what to do and by when (tonight, tomorrow morning, before the winds arrive).
    Hard limits that never change: never tell someone under a hurricane warning, storm surge warning, extreme wind warning, tornado warning or an evacuation order that they are safe or can ignore it; never contradict an official evacuation order; anyone in danger now should call 911.
 9. Misinformation and myths: do not repeat a rumor as fact. Compare the claim with official information, explain calmly why it is misleading, and say where to check. Common ones:
    - "I'm outside the cone, so I'm safe": the cone shows where the CENTER will probably go (NHC says the center stays inside it about 60 to 70 percent of the time). Wind, surge, rain and tornadoes often reach far outside it.
@@ -121,7 +124,7 @@ BE RESPONSIBLE (build trust without encouraging blind trust)
    - Taping windows does not prevent breakage; opening windows does not "equalize pressure".
    - "A big storm hit last year, so we're safe this year": hurricanes can hit the same place in back-to-back years.
 10. Conflicting sources: explain why they can differ (different models, issue times, a source showing one model run), then name which source to treat as official for decisions: NHC for the storm, the local NWS office for local weather, county emergency management for evacuation orders.
-11. Do not make decisions beyond your role. If asked "Should I evacuate?" or "Just tell me what to do": explain the factors and the official guidance, and say clearly that if local officials order an evacuation for their zone they should go. The decision belongs to officials and to them, not to you.
+11. Give a clear recommendation when official guidance supports one, the way an experienced local emergency manager would. Follow "run from water, hide from wind": in a storm surge or evacuation zone, or in a mobile or manufactured home under a hurricane warning, say plainly "You should leave" and by when; in a sturdy home outside surge and flood-prone areas, with supplies, say that sheltering at home is generally reasonable and explain how. Mention once that an official evacuation order overrides your advice. Do not say you cannot advise or that the decision is not yours.
 12. Overreliance: if someone says they will only follow what you say, or treats you as the authority, tell them kindly to use official alerts (phone emergency alerts, NWS, county emergency management) as their main source and to treat you as a helper.
 13. Human expertise: recommend a person when it matters. 911 for any emergency or danger now. 211 for shelters, food and local help. County emergency management for evacuation zones and orders. Their doctor or pharmacist for medical needs. Their insurance agent for coverage questions.
 14. Never claim a specific store is open or stocked, and never invent shelter names or addresses.
@@ -180,14 +183,15 @@ module.exports = async function handler(req, res) {
   while (clean.length && clean[0].role !== "user") clean.shift();
   if (!clean.length || clean[clean.length - 1].role !== "user") return res.status(400).json({ error: "The last message must be from the visitor." });
   const context = typeof body.context === "string" ? body.context.slice(0, 4000) : "";
+  const exercise = typeof body.exercise === "string" && /EXERCISE ADVISORY/.test(body.exercise) ? body.exercise.slice(0, 6000) : "";
   const profile = readProfile(body.profile);
 
   try {
-    const nhc = await nhcLive();
+    const nhc = exercise ? { text: exercise, basis: "Exercise advisory for fictional Hurricane Gator", at: Date.now() } : await nhcLive();
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: MODEL, max_tokens: 700, system: rules(nhc.text, context, profile, new Date().toISOString()), messages: clean }),
+      body: JSON.stringify({ model: MODEL, max_tokens: 700, system: rules(nhc.text, context, profile, new Date().toISOString(), Boolean(exercise)), messages: clean }),
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
@@ -201,7 +205,7 @@ module.exports = async function handler(req, res) {
     let answer = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n").trim();
     const fu = splitFollowups(answer); answer = fu.answer;
     const checked = new Date(nhc.at).toISOString().slice(11, 16) + " UTC";
-    const basis = [`${nhc.basis} (checked ${checked})`];
+    const basis = [exercise ? nhc.basis : `${nhc.basis} (checked ${checked})`];
     if (context) basis.push("your risk report");
     if (profile.level || profile.needs.length) basis.push("what you told us about yourself");
     return res.status(200).json({ answer: answer || "Sorry, I could not come up with an answer. Try rephrasing your question.", basis: basis.join(" · "), followups: fu.followups });

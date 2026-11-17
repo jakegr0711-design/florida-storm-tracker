@@ -107,3 +107,7 @@ Safeguards: requests are accepted only from this site, each visitor is limited t
 ### Assistant design (final project)
 
 Role: Personal Hurricane Risk Guide and Resource Navigator. The full instructions are in `rules()` in `api/chat.js`. The chat panel's optional "About you" settings (experience level, household needs, English or Spanish) are saved only in the visitor's browser and sent with each question. Every answer shows a "Based on" line (which NHC data, and whether the risk report or profile was used) and Helpful / Report a problem buttons. Ratings go to `api/feedback.js`, which writes one `FEEDBACK` line per rating to the Vercel runtime logs for the team to review.
+
+### Exercise mode for demonstrations
+
+Open the site with `?demo=1` (for example `https://florida-storm-tracker.vercel.app/?demo=1`) to load **Hurricane Gator**, a fictional Category 3 that makes landfall near Cedar Key about 23 hours after the page opens and passes just west of Gainesville about 7 hours later. Every screen shows a yellow EXERCISE banner. The map, status board, risk report (exercise alerts and forecast) and Storm Guide all use the scenario; flood zone, elevation and history stay real for the address. Without `?demo=1` the site shows only real data.

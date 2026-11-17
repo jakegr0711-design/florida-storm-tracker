@@ -179,6 +179,10 @@ section.tabpanel{padding-block:0 40px}
 .ask .btn{width:50px;height:50px;padding:0;border-radius:50%}
 .ask .btn svg{width:22px;height:22px}
 .offline{margin-top:24px}
+.exercise{position:sticky;top:0;z-index:1100;background:repeating-linear-gradient(135deg,#ffd60a 0 18px,#ffc300 18px 36px);color:#111;font-weight:600;font-size:15px;padding:8px 0;border-bottom:2px solid #111}
+.exercise .wrap{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center}
+.exercise b{font-weight:800;letter-spacing:.04em}
+.exercise a{color:#111}
 
 /* ---- footer + map bits */
 .foot{margin-top:8px;padding-block:24px 32px;font-size:14px;color:var(--muted);display:flex;flex-direction:column;gap:8px}
@@ -189,6 +193,7 @@ section.tabpanel{padding-block:0 40px}
 </style>
 </head>
 <body>
+<div class="exercise" id="exercise" hidden role="note"><div class="wrap"><span><b>EXERCISE</b> Hurricane Gator is a made-up storm for a class demonstration. Nothing about it is real.</span><a href="./">Switch to real data</a></div></div>
 <header class="bar">
   <div class="wrap">
     <a class="brand" href="index.html#now"><span class="flag" aria-hidden="true"></span>Florida Storm Tracker</a>
@@ -376,7 +381,98 @@ const WWNAME = {HWR:"Hurricane warning", HWA:"Hurricane watch", TWR:"Tropical st
 
 // ---------------------------------------------------------------- live tropics
 const LIVE = {storms: [], outlook: [], ok: false};
+// ---------------------------------------------------------------- EXERCISE MODE (?demo=1): fictional Hurricane Gator
+// A made-up storm for classroom demonstrations. Never shown unless the page is opened with ?demo=1,
+// and always labeled as an exercise on screen and in the assistant's instructions.
+const DEMO = new URLSearchParams(location.search).has("demo");
+const DEMO_T0 = (() => { const d = new Date(); d.setMinutes(0, 0, 0); return d.getTime(); })();
+const DEMO_PTS = [
+  {tau: 0,  lat: 26.3,  lon: -84.2,  kt: 105, ss: 3, dv: "Major Hurricane", gust: 130, mslp: 958, dir: 10, spd: 11},
+  {tau: 12, lat: 27.8,  lon: -83.9,  kt: 110, ss: 3, dv: "Major Hurricane", gust: 135},
+  {tau: 24, lat: 29.1,  lon: -83.1,  kt: 100, ss: 3, dv: "Major Hurricane", gust: 120},
+  {tau: 30, lat: 29.62, lon: -82.42, kt: 85,  ss: 2, dv: "Hurricane", gust: 105},
+  {tau: 36, lat: 30.2,  lon: -81.6,  kt: 70,  ss: 1, dv: "Hurricane", gust: 85},
+  {tau: 48, lat: 31.6,  lon: -79.1,  kt: 60,  ss: 0, dv: "Tropical Storm", gust: 75},
+  {tau: 72, lat: 34.6,  lon: -74.2,  kt: 55,  ss: 0, dv: "Tropical Storm", gust: 65},
+];
+const demoWhen = (tau, opts) => new Date(DEMO_T0 + tau * 36e5).toLocaleString("en-US", Object.assign({weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "America/New_York"}, opts || {}));
+function demoStorm(){
+  const adv = demoWhen(0, {month: "short", day: "numeric", year: "numeric"}) + " ET";
+  const pts = DEMO_PTS.map(p => ({type: "Feature", geometry: {type: "Point", coordinates: [p.lon, p.lat]}, properties: {
+    stormname: "Hurricane Gator", tcdvlp: p.dv, ssnum: p.ss, maxwind: p.kt, gust: p.gust, mslp: p.mslp || 9999, tcdir: p.dir ?? 9999, tcspd: p.spd ?? 9999,
+    tau: p.tau, datelbl: demoWhen(p.tau), advdate: adv, advisnum: "14", stormtype: p.ss >= 3 ? "MH" : p.ss ? "HU" : "TS"}}));
+  // forecast cone: offsets either side of the track, widening with lead time (nautical miles)
+  const R = {0: 12, 12: 26, 24: 41, 30: 48, 36: 55, 48: 70, 72: 102}, left = [], right = [];
+  DEMO_PTS.forEach((p, i) => {
+    const a = DEMO_PTS[Math.max(0, i - 1)], b = DEMO_PTS[Math.min(DEMO_PTS.length - 1, i + 1)];
+    const k = Math.cos(p.lat * Math.PI / 180), dx = (b.lon - a.lon) * k, dy = b.lat - a.lat, n = Math.hypot(dx, dy) || 1;
+    const r = R[p.tau] / 60, ox = -dy / n * r / k, oy = dx / n * r;
+    left.push([p.lon + ox, p.lat + oy]); right.push([p.lon - ox, p.lat - oy]);
+  });
+  const ring = [...left, ...right.reverse()]; ring.push(ring[0]);
+  const line = (coords, props) => ({type: "Feature", geometry: {type: "LineString", coordinates: coords}, properties: props || {}});
+  return {bin: "AT1", id: 6, pts,
+    trk: {type: "FeatureCollection", features: [line(DEMO_PTS.map(p => [p.lon, p.lat]), {stormname: "Gator"})]},
+    cone: {type: "FeatureCollection", features: [{type: "Feature", geometry: {type: "Polygon", coordinates: [ring]}, properties: {stormname: "Gator"}}]},
+    past: {type: "FeatureCollection", features: [line([[-82.5, 16.5], [-83.0, 18.0], [-83.6, 19.8], [-84.0, 21.6], [-84.3, 23.4], [-84.3, 25.0], [-84.2, 26.3]])]},
+    ww: {type: "FeatureCollection", features: [
+      line([[-82.70, 27.50], [-82.80, 28.00], [-82.75, 28.50], [-82.66, 28.90], [-83.03, 29.14], [-83.40, 29.65], [-83.60, 29.95], [-84.10, 30.10]], {tcww: "HWR"}),
+      line([[-81.85, 26.30], [-82.10, 26.80], [-82.40, 27.10], [-82.70, 27.50]], {tcww: "TWR"}),
+      line([[-84.10, 30.10], [-84.40, 29.95], [-84.90, 29.75]], {tcww: "TWR"}),
+      line([[-81.20, 29.45], [-81.30, 29.90], [-81.40, 30.40], [-81.45, 30.70], [-81.40, 31.20]], {tcww: "HWA"})]}};
+}
+function demoCenterAt(tauH){
+  const P = DEMO_PTS; if (tauH < 0 || tauH > P[P.length - 1].tau) return null;
+  for (let i = 0; i < P.length - 1; i++) { const a = P[i], b = P[i + 1]; if (tauH >= a.tau && tauH <= b.tau) { const f = (tauH - a.tau) / (b.tau - a.tau); return {lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f, kt: a.kt + (b.kt - a.kt) * f}; } }
+  return null;
+}
+// sustained wind (kt) at a place: simple vortex profile, 25-mile radius of maximum winds
+function demoWindAt(lat, lon, tauH){ const c = demoCenterAt(tauH); if (!c) return 0; const r = miles(lat, lon, c.lat, c.lon), rmw = 25; return r <= rmw ? c.kt * Math.max(r / rmw, 0.35) : c.kt * Math.pow(rmw / r, 0.65); }
+function demoPeakAt(lat, lon){ let best = {kt: 0, tau: 0}; for (let t = 0; t <= 72; t += 1) { const v = demoWindAt(lat, lon, t); if (v > best.kt) best = {kt: v, tau: t}; } return best; }
+function demoAlerts(loc, elev){
+  const near = stormRelation(loc.lat, loc.lon).find(r => /Gator/.test(r.info.name)); if (!near) return [];
+  const peak = demoPeakAt(loc.lat, loc.lon), until = new Date(DEMO_T0 + 40 * 36e5).toISOString(), out = [];
+  const A = (event, severity, instruction) => out.push({properties: {event, severity, instruction, senderName: "National Weather Service (exercise)", expires: until, sent: new Date(DEMO_T0).toISOString()}});
+  if (elev !== null && elev < 12 && near.closest <= 130) A("Storm Surge Warning", "Extreme", "Life-threatening storm surge of 8 to 12 feet above ground is possible. Leave the evacuation zone when officials tell you to.");
+  if (peak.kt >= 64 || near.closest <= 60) A("Hurricane Warning", "Extreme", "Hurricane conditions are expected. Rush preparations to completion. Have a safe interior room ready before winds arrive.");
+  else if (peak.kt >= 34) A("Tropical Storm Warning", "Severe", "Tropical storm conditions are expected. Secure loose objects and expect power outages.");
+  if (near.closest <= 180) A("Flood Watch", "Severe", "6 to 10 inches of rain, locally up to 15 inches, could cause flash flooding and river flooding.");
+  if (near.closest <= 200) A("Tornado Watch", "Severe", "Brief tornadoes are possible in the hurricane's rain bands. Be ready to move to an interior room.");
+  return out;
+}
+function demoForecast(loc){
+  const periods = [], now = Date.now(), d0 = new Date(now), night0 = d0.getHours() >= 18 || d0.getHours() < 6;
+  let start = new Date(now), end = new Date(now); end.setHours(night0 ? 6 : 18, 0, 0, 0); if (end <= start) end = new Date(end.getTime() + 864e5);
+  for (let k = 0; k < 6; k++) {
+    const night = (start.getHours() >= 18 || start.getHours() < 6), day = start.toLocaleDateString("en-US", {weekday: "long"});
+    const name = k === 0 ? (night ? "Tonight" : "Today") : night ? (start.getHours() < 6 ? "Overnight" : day + " Night") : day;
+    let kt = 0; for (let t = start.getTime(); t <= end.getTime(); t += 36e5) kt = Math.max(kt, demoWindAt(loc.lat, loc.lon, (t - DEMO_T0) / 36e5));
+    const mph = kt * 1.15078, r5 = v => Math.max(5, Math.round(v / 5) * 5);
+    const [txt, icon] = mph >= 74 ? ["Hurricane Conditions Likely", "hurricane"] : mph >= 39 ? ["Tropical Storm Conditions Likely", "tropical_storm"] : mph >= 20 ? ["Showers And Thunderstorms Likely", "tsra"] : [k === 0 ? "Increasing Clouds" : "Partly Cloudy", night ? "sct" : "few"];
+    periods.push({name, temperature: night ? (mph >= 39 ? 74 : 71) : (mph >= 39 ? 78 : 83), shortForecast: txt, windDirection: "",
+      windSpeed: mph >= 20 ? `${r5(mph * 0.8)} to ${r5(mph)} mph, gusts to ${r5(mph * 1.3)} mph` : "5 to 10 mph",
+      icon: `https://api.weather.gov/icons/land/${night ? "night" : "day"}/${icon}?size=medium`});
+    start = end; end = new Date(end.getTime() + 432e5);
+  }
+  return {properties: {periods}};
+}
+function demoAdvisoryText(){
+  const p0 = DEMO_PTS[0];
+  return `EXERCISE ADVISORY (FICTIONAL STORM FOR A CLASSROOM DEMONSTRATION)
+Hurricane Gator Advisory Number 14, issued ${demoWhen(0, {month: "short", day: "numeric"})} ET.
+LOCATION: ${p0.lat}N ${Math.abs(p0.lon)}W, about 150 miles SW of Tampa and 190 miles SSW of Cedar Key. MAXIMUM SUSTAINED WINDS: 120 mph (Category 3). MOVEMENT: N at 13 mph, turning NNE then NE. PRESSURE: 958 mb.
+Hurricane-force winds extend up to 40 miles from the center; tropical-storm-force winds extend up to 125 miles.
+FORECAST: Gator strengthens slightly over warm Gulf water tonight, then makes landfall near Cedar Key around ${demoWhen(23)} as a Category 3 hurricane. The center then moves NE across north-central Florida, passing just west of Gainesville around ${demoWhen(30)} as a Category 2 hurricane (100 mph), and reaches the Atlantic near Jacksonville around ${demoWhen(36)} as a Category 1. Forecast positions: +12h 27.8N 83.9W 125 mph; +24h 29.1N 83.1W 115 mph; +30h 29.6N 82.4W 100 mph; +36h 30.2N 81.6W 80 mph; +48h 31.6N 79.1W 70 mph.
+WATCHES AND WARNINGS: Hurricane Warning from Anna Maria Island to the Ochlockonee River, including inland Levy, Gilchrist, Alachua, Marion, Columbia, Union, Bradford and Clay counties. Storm Surge Warning from Anna Maria Island to the Aucilla River. Tropical Storm Warning from Bonita Beach to Anna Maria Island and west of the Ochlockonee River to Indian Pass. Hurricane Watch on the Atlantic coast from Flagler Beach to Altamaha Sound, GA.
+STORM SURGE (peak, feet above ground): Cedar Key to Yankeetown 10-14 ft; Aucilla River to Cedar Key 8-12 ft; Yankeetown to Aripeka 7-10 ft; Aripeka to Anna Maria Island including Tampa Bay 4-7 ft.
+WIND: Hurricane conditions reach the Gulf coast warning area tomorrow afternoon and spread inland across north-central Florida, including Gainesville and Ocala, tomorrow evening into early the next morning. Tropical storm conditions begin along the Gulf coast tomorrow morning and inland by early tomorrow afternoon. Widespread long-lasting power outages and many downed trees are expected inland.
+RAINFALL: 6 to 10 inches across west-central and north-central Florida, locally up to 15 inches. Considerable flash and river flooding is expected, including the Santa Fe and Suwannee rivers.
+TORNADOES: Possible tomorrow across central and northeast Florida.
+NEXT ADVISORY: in 3 hours.`;
+}
+
 async function loadLive(){
+  if (DEMO) { LIVE.storms = [demoStorm()]; LIVE.outlook = {pts: [], areas: []}; LIVE.ok = true; LIVE.outlookOK = true; renderLive(); demoDecorate(); return; }
   const found = [];
   const ptsAll = await Promise.allSettled(Object.entries(BINS).map(([bin, id]) => getJSON(q(id, "stormname,tcdvlp,ssnum,maxwind,gust,mslp,tcdir,tcspd,tau,datelbl,advdate,advisnum,stormtype")).then(j => ({bin, id, j}))));
   let failures = 0;
@@ -392,6 +488,13 @@ async function loadLive(){
   } catch (e) { outlookOK = false; }
   LIVE.storms = found; LIVE.outlook = outlook; LIVE.ok = failures < Object.keys(BINS).length; LIVE.outlookOK = outlookOK;
   renderLive();
+}
+function demoDecorate(){
+  $("exercise").hidden = false; document.title = "EXERCISE: Hurricane Gator | Florida Storm Tracker";
+  $("lastcheck").textContent = "Exercise scenario. Times count forward from when this page was opened.";
+  $("hero-sub").textContent = "120 mph winds, moving north at 13 mph. Landfall expected near Cedar Key around " + demoWhen(23) + ", with the center passing just west of Gainesville around " + demoWhen(30) + ".";
+  $("outlook").innerHTML = '<h2>Chance of new storms</h2><p>Not part of this exercise. Only Hurricane Gator is simulated.</p>';
+  document.querySelectorAll("#storms a").forEach(a => { a.removeAttribute("href"); a.textContent = "Exercise: there is no real NHC advisory for this storm."; });
 }
 function stormInfo(s){
   const p = s.pts[0].properties, name = String(p.stormname || "").trim();
@@ -513,15 +616,17 @@ async function runReport(loc, typed, silent){
     if (rl) { place = `${rl.city}, ${rl.state}`; state = rl.state; }
     try { fcData = await getJSON(pp.forecast); } catch (e) { fcData = null; }
   }
+  if (DEMO) fcData = demoForecast(loc);
   if (fcData && fcData.properties && fcData.properties.periods) {
     $("fc").innerHTML = fcData.properties.periods.slice(0, 6).map(p => `<div class="period">${p.icon ? `<img src="${esc(p.icon)}" alt="" loading="lazy">` : ""}<div><b>${esc(p.name)}</b><span class="t">${esc(p.temperature)}&deg;</span><p class="small">${esc(p.shortForecast)}</p><p class="small muted">Wind ${esc(p.windDirection)} ${esc(p.windSpeed)}</p></div></div>`).join("");
   } else $("fc").innerHTML = `<p class="small">${pt.status === "rejected" && pt.reason && pt.reason.status === 404 ? "The National Weather Service has no forecast for this spot (it may be offshore or outside the U.S.)." : "Could not load the forecast right now. Try again in a minute."}</p>`;
   $("fclink").innerHTML = `<a href="https://forecast.weather.gov/MapClick.php?lat=${loc.lat.toFixed(4)}&lon=${loc.lon.toFixed(4)}">Full National Weather Service forecast for this spot</a>`;
   // alerts
-  let alerts = [], alertsOK = al.status === "fulfilled";
+  let alerts = [], alertsOK = DEMO || al.status === "fulfilled";
+  const demoElev = el.status === "fulfilled" && isFinite(Number(el.value.value)) && Number(el.value.value) > -1000 ? Number(el.value.value) : null;
   if (alertsOK) {
     const seen = new Map();
-    for (const f of al.value.features || []) { const p = f.properties; const prev = seen.get(p.event); if (!prev || (p.sent || "") > (prev.sent || "")) seen.set(p.event, p); }
+    for (const f of (DEMO ? demoAlerts(loc, demoElev) : al.value.features) || []) { const p = f.properties; const prev = seen.get(p.event); if (!prev || (p.sent || "") > (prev.sent || "")) seen.set(p.event, p); }
     alerts = [...seen.values()].sort((a, b) => (SEV[b.severity] || 0) - (SEV[a.severity] || 0));
     $("alerts").innerHTML = alerts.length ? alerts.map(a => `<div class="alert ${esc(a.severity)}"><b>${esc(a.event)}</b><p class="small muted">${esc(a.senderName)}${a.expires ? " &middot; until " + esc(new Date(a.ends || a.expires).toLocaleString([], {weekday: "short", hour: "numeric", minute: "2-digit"})) : ""}</p>${a.instruction ? `<p class="small">${esc(a.instruction.replace(/\s+/g, " ").slice(0, 260))}${a.instruction.length > 260 ? "..." : ""}</p>` : ""}</div>`).join("")
       : '<p class="small">No active weather alerts for this location.</p>';
@@ -667,7 +772,7 @@ async function ask(text){
   try {
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 45000);
     const r = await fetch("api/chat", {method: "POST", headers: {"Content-Type": "application/json"}, signal: ctl.signal,
-      body: JSON.stringify({messages: chat.turns.slice(-10), context: REPORT_CTX, profile: p})});
+      body: JSON.stringify({messages: chat.turns.slice(-10), context: REPORT_CTX, profile: p, exercise: DEMO ? demoAdvisoryText() : undefined})});
     clearTimeout(t);
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.answer) throw new Error(j.error || "The assistant could not answer right now. Try again in a minute.");
