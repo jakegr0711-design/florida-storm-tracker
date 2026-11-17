@@ -2,8 +2,8 @@
 // The Anthropic API key lives only in Vercel's environment variables (ANTHROPIC_API_KEY).
 // It is never sent to the browser.
 //
-// Role: Personal Hurricane Risk Guide + Resource Navigator for the Florida public.
-// The full instructions the assistant follows are in rules() below.
+// Storm Guide: a plain, direct chatbot that is told the current storm situation, the visitor's
+// risk report and profile. Its instructions are in rules() below.
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-5-5";
 const MAX_TURNS = 10;            // recent messages sent to Claude
@@ -71,7 +71,44 @@ function describeProfile(p) {
   return lines.length ? lines.join("\n") : "Not given. Infer level from how they write; ask about household needs when it matters for the answer.";
 }
 
+// Default assistant: a normal, direct chatbot that knows what is going on.
+// Set ASSISTANT_RULES=guided in Vercel's environment variables to switch back to the older,
+// rule-heavy version (guidedRules below), then redeploy.
 function rules(liveText, context, profile, now, exercise) {
+  const local = new Date(now).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return `You are Storm Guide, the chat assistant on Florida Storm Tracker, a hurricane website for Floridians built by University of Florida students for their Quest class. The site has a live storm map (Now tab), a personal risk report for any Florida address (My risk tab: storm surge, wind, flooding, tornadoes, FEMA flood zone, elevation, local alerts and forecast), and a page of past Florida hurricanes.
+
+Current time: ${local} Eastern (${now} UTC).
+${exercise ? `
+RIGHT NOW THE SITE IS RUNNING A CLASSROOM EXERCISE: Hurricane Gator is a made-up storm forecast to hit Gainesville, used to demonstrate the site. Every page shows an EXERCISE banner. Treat the advisory below as what is really happening and talk about it the way you would a real storm, with specifics. If someone asks whether it is real, tell them it is a fictional exercise storm.
+` : ""}
+${exercise ? "CURRENT STORM SITUATION (exercise advisory):" : "CURRENT STORM SITUATION (live from the National Hurricane Center, fetched within the last 10 minutes):"}
+<storm>
+${liveText}
+</storm>
+
+THE VISITOR'S RISK REPORT (if they ran one on the site):
+<report>
+${context || "They have not run one yet. If their location matters, ask where they are or suggest the My risk tab."}
+</report>
+
+WHAT THE VISITOR TOLD THE SITE ABOUT THEMSELVES:
+<profile>
+${describeProfile(profile)}
+</profile>
+
+HOW TO TALK
+Be a normal, friendly, knowledgeable chatbot. Answer what the person asks, directly and confidently, the way a well-informed friend who knows hurricanes would. Use the storm situation, report and profile above so your answers fit this person. When they ask for something the data does not pin down exactly (what time the power goes out, gusts on their street), give your best estimate. Don't hedge, don't stack disclaimers, and don't keep sending people to other sources. Answer general questions too, about weather, Florida, school or everyday life around the storm. Only if a message is inappropriate or has nothing to do with this site (for example coding or homework help), say in one sentence that you're the site's hurricane assistant and offer something related instead. If they write in Spanish or their profile says Spanish, answer in Spanish.
+
+Keep answers conversational and fairly short unless they ask for detail. Plain text only: no markdown, headers, bold or tables (the chat window shows text exactly as written); simple dashes for lists are fine.
+
+After your answer, add one final line in exactly this form:
+FOLLOWUPS: first question | second question | third question
+These are 2 or 3 short questions (under 70 characters each) the visitor would most likely ask next, in their voice and language. Write nothing after that line.`;
+}
+
+// The earlier, rule-heavy assistant (used only when ASSISTANT_RULES=guided).
+function guidedRules(liveText, context, profile, now, exercise) {
   return `You are the hurricane help assistant on Florida Storm Tracker, a student science-communication website for the Florida public.
 
 YOUR ROLE: Personal Hurricane Risk Guide and Resource Navigator.
@@ -193,7 +230,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const nhc = exercise ? { text: exercise, basis: "Exercise advisory for fictional Hurricane Gator", at: Date.now() } : await nhcLive();
-    const system = rules(nhc.text, context, profile, new Date().toISOString(), Boolean(exercise));
+    const system = (process.env.ASSISTANT_RULES === "guided" ? guidedRules : rules)(nhc.text, context, profile, new Date().toISOString(), Boolean(exercise));
     const call = (sys, messages) => fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
@@ -208,7 +245,7 @@ module.exports = async function handler(req, res) {
     const declined = r.ok && (!splitFollowups(first).answer || data.stop_reason === "refusal" || DECLINE.test(first));
     if (declined) {
       console.log("CHAT declined " + JSON.stringify({ stop: data.stop_reason, demo: Boolean(exercise), question: clean[clean.length - 1].content.slice(0, 160), reply: first.slice(0, 160) }));
-      const r2 = await call(system + "\n\nREMINDER: Your first draft declined this question. If it is in any way connected to the storm, weather, safety or planning around the storm, answer it fully and directly. Do not apologize.", [clean[clean.length - 1]]);
+      const r2 = await call(system + "\n\nREMINDER: Your first draft declined this question. Unless it is inappropriate or truly unrelated to this site, answer it directly. Do not apologize.", [clean[clean.length - 1]]);
       const d2 = await r2.json().catch(() => ({}));
       if (r2.ok && textOf(d2)) { r = r2; data = d2; }
     }
@@ -234,5 +271,6 @@ module.exports = async function handler(req, res) {
 };
 
 module.exports.rules = rules;
+module.exports.guidedRules = guidedRules;
 module.exports.readProfile = readProfile;
 module.exports.splitFollowups = splitFollowups;
