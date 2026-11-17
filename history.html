@@ -102,7 +102,7 @@ th{font-weight:500;color:var(--muted);font-size:11px;letter-spacing:.04em;text-t
 
 <header>
   <h1>Florida Storm Tracker</h1>
-  <p style="margin:0"><a href="index.html" style="color:var(--accent)">Live tracker and my risk report</a></p>
+  <p style="margin:0"><a href="index.html" id="homelink" style="color:var(--accent)">Live tracker and my risk report</a></p>
   <p class="sub">Every tropical cyclone that crossed Florida since 1851, and a statistics-only forecast model you can test against what really happened. Data: NOAA/NHC HURDAT2.</p>
 </header>
 
@@ -409,3 +409,4 @@ window.claude.use('sample').then(s => {
 }).catch(() => off(OFF));
 })();
 </script>
+<script>/* keep exercise mode (?demo=1) when going back to the live page */ if(new URLSearchParams(location.search).has("demo")) document.getElementById("homelink").href="index.html?demo=1";</script>

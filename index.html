@@ -385,6 +385,8 @@ const LIVE = {storms: [], outlook: [], ok: false};
 // A made-up storm for classroom demonstrations. Never shown unless the page is opened with ?demo=1,
 // and always labeled as an exercise on screen and in the assistant's instructions.
 const DEMO = new URLSearchParams(location.search).has("demo");
+// Keep exercise mode when moving to the History page and back.
+if (DEMO) document.querySelectorAll('a[href="history.html"]').forEach(a => a.setAttribute("href", "history.html?demo=1"));
 const DEMO_T0 = (() => { const d = new Date(); d.setMinutes(0, 0, 0); return d.getTime(); })();
 const DEMO_PTS = [
   {tau: 0,  lat: 26.3,  lon: -84.2,  kt: 105, ss: 3, dv: "Major Hurricane", gust: 130, mslp: 958, dir: 10, spd: 11},
